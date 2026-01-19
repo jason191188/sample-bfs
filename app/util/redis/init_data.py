@@ -6,15 +6,12 @@ NODES_KEY = "nodes"
 
 
 def init_node_data():
-    """1~60번 노드 초기 데이터 생성 (일렬 연결)"""
     if not redis_service.is_connected():
-        print("Redis 미연결 - 초기 데이터 로드 실패")
         return
 
     # 기존 데이터 확인
     existing = redis_service.hgetall(NODES_KEY)
     if existing:
-        print(f"노드 데이터 이미 존재 ({len(existing)}개)")
         return
 
     # 1~60번 노드 생성 (일렬 연결: 1번=오른쪽 끝, 60번=왼쪽 끝)
@@ -28,7 +25,6 @@ def init_node_data():
         }
         redis_service.hset(NODES_KEY, str(node_id), json.dumps(node_data))
 
-    print("노드 초기 데이터 로드 완료 (1~60번: 1=오른쪽 끝, 60=왼쪽 끝)")
 
 
 def get_all_nodes() -> dict:
@@ -48,4 +44,3 @@ def get_node(node_id: int) -> dict:
 def clear_nodes():
     """노드 데이터 초기화"""
     redis_service.delete(NODES_KEY)
-    print("노드 데이터 삭제 완료")

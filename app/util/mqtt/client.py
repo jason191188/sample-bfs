@@ -26,21 +26,15 @@ class MQTTService:
 
     def _on_connect(self, client, userdata, flags, rc, properties=None):
         if rc == 0:
-            print("MQTT 브로커 연결 성공")
-            # 등록된 핸들러 토픽들 구독
             for topic in self._handlers.keys():
                 client.subscribe(topic)
-                print(f"MQTT 토픽 구독: {topic}")
-            # 테스트 메시지 발행
             client.publish(settings.mqtt.pub_topic, "server connected")
-            print(f"MQTT 테스트 메시지 발행: {settings.mqtt.pub_topic}")
         else:
             print(f"MQTT 연결 실패: {rc}")
 
     def _on_message(self, client, userdata, msg):
         topic = msg.topic
         payload = msg.payload.decode("utf-8")
-        print(f"MQTT 수신 [{topic}]: {payload}")
 
         # 매칭되는 핸들러 호출
         for pattern, handler in self._handlers.items():
@@ -53,12 +47,10 @@ class MQTTService:
     def register_handler(self, handler: "MQTTHandler"):
         """핸들러 등록"""
         self._handlers[handler.topic] = handler
-        print(f"MQTT 핸들러 등록: {handler.topic}")
 
         # 이미 연결된 상태면 바로 구독
         if self.client and self.client.is_connected():
             self.client.subscribe(handler.topic)
-            print(f"MQTT 토픽 구독: {handler.topic}")
 
     def connect(self):
         self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
@@ -79,7 +71,6 @@ class MQTTService:
         """추가 토픽 구독"""
         if self.client and self.client.is_connected():
             self.client.subscribe(topic)
-            print(f"MQTT 토픽 구독: {topic}")
 
     def publish(self, topic: str, payload: str) -> bool:
         if self.client and self.client.is_connected():
