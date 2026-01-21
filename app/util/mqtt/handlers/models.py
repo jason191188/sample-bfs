@@ -12,3 +12,7 @@ class BatteryPayload(BaseModel):
 
 class ArrivePayload(BaseModel):
     node: int  # 도착 노드
+
+
+class RemovePathPayload(BaseModel):
+    node: int  # 해제할 노드
