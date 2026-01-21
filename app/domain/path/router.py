@@ -44,13 +44,8 @@ async def find_path(request: PathRequest):
     actual_end = path[-1]  # 실제 도착 노드 (잘린 경우 원래 목적지와 다를 수 있음)
     path_str = format_path(actual_end, request.start, path, directions)
 
-    # 4. MQTT로 경로 전송
-    if mqtt_service.publish(settings.mqtt.pub_topic, path_str):
-        message = "경로 전송 완료"
-    else:
-        message = "경로 찾음 (MQTT 미연결)"
-
-    # 경로가 잘린 경우 메시지에 알림 추가
+    # 4. 메시지 생성
+    message = "경로 계산 완료"
     if request.robot_id and actual_end != request.end:
         message += f" (점유된 노드로 인해 노드 {actual_end}까지만 이동 가능)"
 

@@ -26,9 +26,10 @@ class MQTTService:
 
     def _on_connect(self, client, userdata, flags, rc, properties=None):
         if rc == 0:
+            print("MQTT 브로커 연결 성공")
             for topic in self._handlers.keys():
                 client.subscribe(topic)
-            client.publish(settings.mqtt.pub_topic, "server connected")
+                print(f"MQTT 토픽 구독: {topic}")
         else:
             print(f"MQTT 연결 실패: {rc}")
 

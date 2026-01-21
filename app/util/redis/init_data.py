@@ -14,16 +14,45 @@ def init_node_data():
     if existing:
         return
 
-    # 1~60번 노드 생성 (일렬 연결: 1번=오른쪽 끝, 60번=왼쪽 끝)
-    # [60] ← [59] ← ... ← [2] ← [1]
+    # 1~60번 노드 생성 (1과 2만 위치 바꿈: [60] ← ... ← [3] ← [1] ← [2])
+    # 순서: 2, 1, 3, 4, 5, ..., 60
     for node_id in range(1, 61):
-        node_data = {
-            "l": node_id + 1 if node_id < 60 else 0,  # 왼쪽 노드 (60번은 없음)
-            "r": node_id - 1 if node_id > 1 else 0,   # 오른쪽 노드 (1번은 없음)
-            "u": 0,
-            "d": 0,
-            "occupied": None,  # 점유 상태: None(비어있음) 또는 robot_id(문자열)
-        }
+        if node_id == 1:
+            # 노드 1: 왼쪽은 3, 오른쪽은 2
+            node_data = {
+                "l": 3,
+                "r": 2,
+                "u": 0,
+                "d": 0,
+                "occupied": None,
+            }
+        elif node_id == 2:
+            # 노드 2: 왼쪽은 1, 오른쪽은 0 (맨 오른쪽 끝)
+            node_data = {
+                "l": 1,
+                "r": 0,
+                "u": 0,
+                "d": 0,
+                "occupied": None,
+            }
+        elif node_id == 3:
+            # 노드 3: 왼쪽은 4, 오른쪽은 1
+            node_data = {
+                "l": 4,
+                "r": 1,
+                "u": 0,
+                "d": 0,
+                "occupied": None,
+            }
+        else:
+            # 나머지 노드들: 일반적인 순차 연결
+            node_data = {
+                "l": node_id + 1 if node_id < 60 else 0,
+                "r": node_id - 1,
+                "u": 0,
+                "d": 0,
+                "occupied": None,
+            }
         redis_service.hset(NODES_KEY, str(node_id), json.dumps(node_data))
 
 

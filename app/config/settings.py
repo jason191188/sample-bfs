@@ -2,17 +2,15 @@ from pydantic_settings import BaseSettings
 
 
 class MQTTSettings(BaseSettings):
-    broker: str = "dev-mqtt.hprobot.cloud"
+    broker: str = "mqtt.hprobot.cloud"
     port: int = 1883
-    pub_topic: str = "robot/path"
-    sub_topic: str = "robot/command"
 
     class Config:
         env_prefix = "MQTT_"
 
 
 class RedisSettings(BaseSettings):
-    host: str = "localhost"
+    host: str = "redis"  # Docker 컨테이너명 (로컬 개발 시 환경변수로 "localhost" 오버라이드)
     port: int = 6379
     db: int = 0
 
