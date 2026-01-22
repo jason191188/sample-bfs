@@ -2,6 +2,7 @@ from pydantic import BaseModel
 
 
 class PathRequest(BaseModel):
+    map_name: str = "default"  # 맵 이름
     start: int  # 시작 노드 ID
     end: int    # 도착 노드 ID
     robot_id: str = None  # 로봇 ID (옵션, 점유 노드 회피용)
@@ -14,11 +15,13 @@ class PathResponse(BaseModel):
 
 
 class OccupyNodeRequest(BaseModel):
+    map_name: str = "default"  # 맵 이름
     node_id: int  # 점유할 노드 ID
     robot_id: str  # 로봇 ID
 
 
 class ReleaseNodeRequest(BaseModel):
+    map_name: str = "default"  # 맵 이름
     node_id: int  # 해제할 노드 ID
     robot_id: str = None  # 로봇 ID (옵션, 지정 시 해당 로봇이 점유한 경우만 해제)
 

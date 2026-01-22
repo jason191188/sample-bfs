@@ -3,17 +3,18 @@ from collections import deque
 from app.util.redis.init_data import get_all_nodes
 
 
-def bfs(start: int, end: int) -> tuple[list[int], list[str]]:
+def bfs(map_name: str, start: int, end: int) -> tuple[list[int], list[str]]:
     """BFS를 이용한 최단 경로 탐색 (Redis 노드 데이터 기반)
 
     Args:
+        map_name: 맵 이름
         start: 시작 노드 ID
         end: 목적지 노드 ID
 
     Returns:
         (경로 노드 리스트, 방향 리스트)
     """
-    nodes = get_all_nodes()
+    nodes = get_all_nodes(map_name)
 
     if not nodes:
         return [], []
@@ -41,10 +42,11 @@ def bfs(start: int, end: int) -> tuple[list[int], list[str]]:
     return [], []
 
 
-def cut_path(path: list[int], directions: list[str], robot_id: str) -> tuple[list[int], list[str]]:
+def cut_path(map_name: str, path: list[int], directions: list[str], robot_id: str) -> tuple[list[int], list[str]]:
     """경로를 점유되지 않은 노드까지 자르기
 
     Args:
+        map_name: 맵 이름
         path: 전체 경로 노드 리스트
         directions: 전체 방향 리스트
         robot_id: 로봇 ID
@@ -55,7 +57,7 @@ def cut_path(path: list[int], directions: list[str], robot_id: str) -> tuple[lis
     if not path:
         return [], []
 
-    nodes = get_all_nodes()
+    nodes = get_all_nodes(map_name)
     cut_index = len(path)  # 기본값: 전체 경로
 
     # 시작 노드(path[0])는 제외하고 경로 검사

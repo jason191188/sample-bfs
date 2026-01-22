@@ -21,16 +21,17 @@ class PathCalculationService:
             is_return: 복귀 경로 여부
         """
         if is_return:
-            path_str, actual_end = self._calculate_return_path(start_node, end_node, robot_id)
+            path_str, actual_end = self._calculate_return_path(map_name, start_node, end_node, robot_id)
         else:
-            path_str, actual_end = self._calculate_forward_path(start_node, end_node, robot_id)
+            path_str, actual_end = self._calculate_forward_path(map_name, start_node, end_node, robot_id)
 
         self._send_path_response(map_name, robot_id, start_node, end_node, path_str, actual_end, is_return)
 
-    def _calculate_forward_path(self, start_node: int, end_node: int, robot_id: str) -> tuple[str | None, int]:
+    def _calculate_forward_path(self, map_name: str, start_node: int, end_node: int, robot_id: str) -> tuple[str | None, int]:
         """전진 경로 계산
 
         Args:
+            map_name: 맵 이름
             start_node: 시작 노드
             end_node: 목적지 노드
             robot_id: 로봇 ID
@@ -39,13 +40,13 @@ class PathCalculationService:
             (경로 문자열, 실제 도착 노드) 또는 (None, end_node) if no path
         """
         # 1. BFS로 전체 최단 경로 계산
-        path, directions = bfs(start_node, end_node)
+        path, directions = bfs(map_name, start_node, end_node)
 
         if not path:
             return None, end_node
 
         # 2. 점유된 노드를 고려하여 경로 자르기
-        path, directions = cut_path(path, directions, robot_id)
+        path, directions = cut_path(map_name, path, directions, robot_id)
 
         # 3. 경로가 시작 노드만 남은 경우 (이동 불가)
         if len(path) <= 1:
@@ -57,10 +58,11 @@ class PathCalculationService:
 
         return path_str, actual_end
 
-    def _calculate_return_path(self, start_node: int, end_node: int, robot_id: str) -> tuple[str | None, int]:
+    def _calculate_return_path(self, map_name: str, start_node: int, end_node: int, robot_id: str) -> tuple[str | None, int]:
         """복귀 경로 계산 (현재는 전진 경로와 동일한 로직)
 
         Args:
+            map_name: 맵 이름
             start_node: 시작 노드
             end_node: 복귀 목적지 노드 (1 또는 2)
             robot_id: 로봇 ID
@@ -69,7 +71,7 @@ class PathCalculationService:
             (경로 문자열, 실제 도착 노드) 또는 (None, end_node) if no path
         """
         # 복귀 경로도 동일한 BFS + cut_path 로직 사용
-        return self._calculate_forward_path(start_node, end_node, robot_id)
+        return self._calculate_forward_path(map_name, start_node, end_node, robot_id)
 
     def _send_path_response(
         self,

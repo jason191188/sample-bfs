@@ -23,16 +23,16 @@ router = APIRouter(prefix="/path", tags=["path"])
 
 @router.post("", response_model=PathResponse)
 async def find_path(request: PathRequest):
-    """BFS로 경로를 찾고 MQTT로 전송 (Redis 노드 데이터 기반)"""
+    """BFS로 경로를 찾고 MQTT로 전송 (Redis 노드 데이터 기반, 맵별)"""
     # 1. BFS로 전체 최단 경로 계산
-    path, directions = bfs(request.start, request.end)
+    path, directions = bfs(request.map_name, request.start, request.end)
 
     if not path:
         raise HTTPException(status_code=404, detail="경로를 찾을 수 없습니다")
 
     # 2. robot_id가 제공된 경우, 점유된 노드를 고려하여 경로를 자름
     if request.robot_id:
-        path, directions = cut_path(path, directions, request.robot_id)
+        path, directions = cut_path(request.map_name, path, directions, request.robot_id)
 
         # 경로가 잘려서 시작 노드만 남은 경우
         if len(path) <= 1:
@@ -54,12 +54,12 @@ async def find_path(request: PathRequest):
 
 @router.post("/occupy", response_model=NodeOccupationResponse)
 async def occupy_node_endpoint(request: OccupyNodeRequest):
-    """노드 점유"""
-    success = occupy_node(request.node_id, request.robot_id)
+    """노드 점유 (맵별)"""
+    success = occupy_node(request.map_name, request.node_id, request.robot_id)
 
     if success:
         return NodeOccupationResponse(
-            success=True, message=f"노드 {request.node_id} 점유 완료"
+            success=True, message=f"맵 {request.map_name}의 노드 {request.node_id} 점유 완료"
         )
     else:
         raise HTTPException(
@@ -69,12 +69,12 @@ async def occupy_node_endpoint(request: OccupyNodeRequest):
 
 @router.post("/release", response_model=NodeOccupationResponse)
 async def release_node_endpoint(request: ReleaseNodeRequest):
-    """노드 점유 해제"""
-    success = release_node(request.node_id, request.robot_id)
+    """노드 점유 해제 (맵별)"""
+    success = release_node(request.map_name, request.node_id, request.robot_id)
 
     if success:
         return NodeOccupationResponse(
-            success=True, message=f"노드 {request.node_id} 해제 완료"
+            success=True, message=f"맵 {request.map_name}의 노드 {request.node_id} 해제 완료"
         )
     else:
         raise HTTPException(
@@ -83,17 +83,17 @@ async def release_node_endpoint(request: ReleaseNodeRequest):
         )
 
 
-@router.get("/occupied", response_model=OccupiedNodesResponse)
-async def get_occupied_nodes_endpoint():
-    """점유된 노드 목록 조회"""
-    occupied = get_occupied_nodes()
+@router.get("/occupied/{map_name}", response_model=OccupiedNodesResponse)
+async def get_occupied_nodes_endpoint(map_name: str = "default"):
+    """점유된 노드 목록 조회 (맵별)"""
+    occupied = get_occupied_nodes(map_name)
     return OccupiedNodesResponse(occupied_nodes=occupied)
 
 
-@router.delete("/robot/{robot_id}", response_model=NodeOccupationResponse)
-async def release_robot_nodes_endpoint(robot_id: str):
-    """특정 로봇이 점유한 모든 노드 해제"""
-    count = release_robot_nodes(robot_id)
+@router.delete("/{map_name}/robot/{robot_id}", response_model=NodeOccupationResponse)
+async def release_robot_nodes_endpoint(map_name: str, robot_id: str):
+    """특정 로봇이 점유한 모든 노드 해제 (맵별)"""
+    count = release_robot_nodes(map_name, robot_id)
     return NodeOccupationResponse(
-        success=True, message=f"로봇 {robot_id}의 노드 {count}개 해제 완료"
+        success=True, message=f"맵 {map_name}에서 로봇 {robot_id}의 노드 {count}개 해제 완료"
     )

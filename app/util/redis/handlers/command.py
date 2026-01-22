@@ -1,13 +1,10 @@
 import json
 
-from app.util.mqtt.handlers.command import CommandHandler
+from app.domain.path.path_service import path_calculation_service
 
 
 class RedisCommandHandler:
-    """Redis Pub/Sub 명령 핸들러 - MQTT CommandHandler 재사용"""
-
-    def __init__(self):
-        self.mqtt_handler = CommandHandler()
+    """Redis Pub/Sub 명령 핸들러 - PathCalculationService 사용"""
 
     def handle_message(self, message: str) -> None:
         """Redis 채널 메시지 처리
@@ -38,7 +35,7 @@ class RedisCommandHandler:
             print(f"[Redis] Error handling message: {e}")
 
     def _handle_start_command(self, data: dict, map_name: str, robot_id: str) -> None:
-        """Start 명령 처리 - MQTT 핸들러 재사용"""
+        """Start 명령 처리 - PathCalculationService 사용"""
         current_node = data.get("currentNode")
         final_node = data.get("finalNode")
 
@@ -48,11 +45,11 @@ class RedisCommandHandler:
 
         print(f"[Redis/Path] Robot {robot_id}: Start request (node {current_node} → {final_node})")
 
-        # MQTT CommandHandler의 경로 계산 메서드 재사용
-        self.mqtt_handler._calculate_and_send_path(map_name, robot_id, current_node, final_node, is_return=False)
+        # PathCalculationService를 사용하여 경로 계산 및 응답
+        path_calculation_service.calculate_and_send_path(map_name, robot_id, current_node, final_node, is_return=False)
 
     def _handle_return_command(self, data: dict, map_name: str, robot_id: str) -> None:
-        """Return 명령 처리 - MQTT 핸들러 재사용"""
+        """Return 명령 처리 - PathCalculationService 사용"""
         current_node = data.get("currentNode")
 
         if current_node is None:
@@ -63,8 +60,8 @@ class RedisCommandHandler:
         destination = 2 if current_node == 1 else 1
         print(f"[Redis/Path] Robot {robot_id}: Return request (node {current_node} → {destination})")
 
-        # MQTT CommandHandler의 경로 계산 메서드 재사용
-        self.mqtt_handler._calculate_and_send_path(map_name, robot_id, current_node, destination, is_return=True)
+        # PathCalculationService를 사용하여 경로 계산 및 응답
+        path_calculation_service.calculate_and_send_path(map_name, robot_id, current_node, destination, is_return=True)
 
 
 redis_command_handler = RedisCommandHandler()
