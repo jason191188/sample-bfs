@@ -9,12 +9,14 @@ router = APIRouter(prefix="/redis", tags=["redis"])
 
 
 class RedisCommandRequest(BaseModel):
-    """Redis 명령 요청 모델 - type, mapName, robotId 필수"""
+    """Redis 명령 요청 모델 - type, mapName, robotId만 필요
+
+    - 현재 노드: Redis에 저장된 로봇 상태에서 자동 조회
+    - 다음 노드: 현재 노드의 왼쪽(l) 방향 노드로 자동 결정
+    """
     type: str  # "start", "return"
     mapName: str  # 맵 이름
     robotId: str  # 로봇 ID
-    currentNode: int  # 현재 노드 (필수)
-    finalNode: Optional[int] = None  # start에서만 사용
 
 
 @router.post("/publish")
@@ -23,22 +25,26 @@ async def publish_command(request: RedisCommandRequest):
 
     지원 명령: start, return
 
+    동작 방식:
+    - start: 현재 노드의 왼쪽(l) 방향 노드를 MQTT server/button으로 전송
+    - return: final_node: 0을 MQTT server/button으로 전송 (복귀 시그널)
+
+    MQTT 토픽: {mapName}/{robotId}/server/button
+    Payload: {"final_node": 10} 또는 {"final_node": 0}
+
     Examples:
-    - Start (일반 경로):
+    - Start (왼쪽 방향 노드를 final_node로 전송):
       {
         "type": "start",
         "mapName": "map1",
-        "robotId": "robot1",
-        "currentNode": 5,
-        "finalNode": 10
+        "robotId": "robot1"
       }
 
-    - Return (복귀):
+    - Return (final_node: 0 전송):
       {
         "type": "return",
         "mapName": "map1",
-        "robotId": "robot1",
-        "currentNode": 30
+        "robotId": "robot1"
       }
     """
     channel = "robot:command"

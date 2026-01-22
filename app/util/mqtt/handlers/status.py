@@ -11,3 +11,4 @@ class StatusHandler(MQTTHandler):
     def handle(self, topic: str, payload: str) -> None:
         # TODO: 상태 처리 로직 구현
         # 예: 위치 업데이트, 배터리 상태 등
+        return

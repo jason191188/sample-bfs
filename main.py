@@ -28,7 +28,7 @@ def register_mqtt_handlers():
 def register_redis_handlers():
     """Redis Pub/Sub 핸들러 등록"""
     # 로봇 명령 채널 구독 (단일 채널)
-    redis_service.subscribe("robot:command", redis_command_handler.handle_message)
+    redis_service.subscribe("smartfarm", redis_command_handler.handle_message)
 
 
 @asynccontextmanager
