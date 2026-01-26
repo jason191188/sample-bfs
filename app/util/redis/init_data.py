@@ -34,7 +34,7 @@ def init_node_data(map_name: str = "default"):
 
     # 1~60번 노드 생성 (1과 2만 위치 바꿈: [60] ← ... ← [3] ← [1] ← [2])
     # 순서: 2, 1, 3, 4, 5, ..., 60
-    for node_id in range(1, 61):
+    for node_id in range(1, 57):
         if node_id == 1:
             # 노드 1: 왼쪽은 3, 오른쪽은 2
             node_data = {

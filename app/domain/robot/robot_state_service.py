@@ -43,13 +43,14 @@ class RobotStateService:
 
         return True
 
-    def update_battery(self, map_name: str, robot_id: str, battery_level: int) -> bool:
+    def update_battery(self, map_name: str, robot_id: str, battery_level: float, charging_state: int = 0) -> bool:
         """로봇 배터리 정보 업데이트
 
         Args:
             map_name: 맵 이름
             robot_id: 로봇 ID
             battery_level: 배터리 잔량 (%)
+            charging_state: 충전 상태 (0: 미충전, 1: 충전중)
 
         Returns:
             성공 여부
@@ -57,6 +58,7 @@ class RobotStateService:
         key = self._get_robot_key(map_name, robot_id)
 
         redis_service.hset(key, "battery_level", str(battery_level))
+        redis_service.hset(key, "charging_state", str(charging_state))
         redis_service.hset(key, "updated_at", datetime.now().isoformat())
 
         return True
@@ -99,13 +101,15 @@ class RobotStateService:
         if not state:
             return None
 
-        # 숫자 필드는 int로 변환
+        # 숫자 필드 변환
         if "current_node" in state:
             state["current_node"] = int(state["current_node"])
         if "final_node" in state:
             state["final_node"] = int(state["final_node"])
         if "battery_level" in state:
-            state["battery_level"] = int(state["battery_level"])
+            state["battery_level"] = float(state["battery_level"])
+        if "charging_state" in state:
+            state["charging_state"] = int(state["charging_state"])
 
         return state
 
@@ -137,7 +141,9 @@ class RobotStateService:
                 if "final_node" in state:
                     state["final_node"] = int(state["final_node"])
                 if "battery_level" in state:
-                    state["battery_level"] = int(state["battery_level"])
+                    state["battery_level"] = float(state["battery_level"])
+                if "charging_state" in state:
+                    state["charging_state"] = int(state["charging_state"])
 
                 robots[robot_id] = state
 

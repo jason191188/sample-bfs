@@ -41,7 +41,7 @@ async def lifespan(app: FastAPI):
     redis_service.connect()
 
     # 기본 맵 노드 초기화
-    init_node_data("default")
+    init_node_data("smartfarm_gangnam")
 
     register_redis_handlers()
 

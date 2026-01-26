@@ -1,6 +1,7 @@
 import json
 
 from app.util.mqtt.handler import MQTTHandler
+from app.util.mqtt.client import mqtt_service
 from app.util.mqtt.handlers.models import (
     PathPayload,
     BatteryPayload,
@@ -46,11 +47,8 @@ class CommandHandler(MQTTHandler):
             (실제 목적지, 복귀 여부)
         """
         if final_node == 0:
-            # 복귀 시그널
-            if current_node == 1:
-                return 2, True  # 1번 노드에서 복귀 → 2번 노드
-            else:
-                return 1, True  # 그 외 노드에서 복귀 → 1번 노드
+            # 복귀 시그널 → 바로 2번 노드로 이동
+            return 2, True
         else:
             # 일반 경로 요청
             return final_node, False
@@ -79,26 +77,32 @@ class CommandHandler(MQTTHandler):
         data = BatteryPayload(**json.loads(payload))
 
         # Redis에 배터리 정보 저장
-        robot_state_service.update_battery(map_name, robot_id, data.level)
-        print(f"[Battery] Robot {robot_id}: Battery level {data.level}% saved to Redis")
+        battery_level = float(data.battery_state)
+        robot_state_service.update_battery(map_name, robot_id, battery_level, data.battery_charging_state)
+        print(f"[Battery] Robot {robot_id}: Battery {battery_level}% (charging: {data.battery_charging_state})")
 
     def _handle_arrive(self, map_name: str, robot_id: str, payload: str) -> None:
         """로봇 도착 처리 - 해당 로봇이 점유한 모든 노드 해제"""
         data = ArrivePayload(**json.loads(payload))
 
         # Redis에 로봇 상태 저장 (도착)
-        robot_state_service.update_status(map_name, robot_id, "arrived", data.node)
+        robot_state_service.update_status(map_name, robot_id, "arrived", data.current_node)
 
         # 해당 로봇이 점유한 모든 노드 해제
         released_count = release_robot_nodes(map_name, robot_id)
-        print(f"[Arrive] Robot {robot_id} arrived at node {data.node}. Released {released_count} nodes.")
+        print(f"[Arrive] Robot {robot_id} arrived at node {data.current_node}. Released {released_count} nodes.")
+
+        # 도착 확인 응답 전송
+        response_topic = f"{map_name}/{robot_id}/server/arrive"
+        response_payload = json.dumps({"yes_or_no": "yes"})
+        mqtt_service.publish(response_topic, response_payload)
 
     def _handle_remove(self, map_name: str, robot_id: str, payload: str) -> None:
         """경로 노드 해제 - 특정 노드의 점유 해제"""
         data = RemovePathPayload(**json.loads(payload))
         # 해당 노드가 이 로봇이 점유한 노드인지 확인 후 해제
-        success = release_node(map_name, data.node, robot_id)
+        success = release_node(map_name, data.current_node, robot_id)
         if success:
-            print(f"[Remove] Robot {robot_id} released node {data.node}.")
+            print(f"[Remove] Robot {robot_id} released node {data.current_node}.")
         else:
-            print(f"[Remove] Failed to release node {data.node} for robot {robot_id}.")
+            print(f"[Remove] Failed to release node {data.current_node} for robot {robot_id}.")

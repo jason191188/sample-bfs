@@ -10,7 +10,7 @@ class MQTTSettings(BaseSettings):
 
 
 class RedisSettings(BaseSettings):
-    host: str = "192.168.0.75"  # Docker 컨테이너명 (로컬 개발 시 환경변수로 "localhost" 오버라이드)
+    host: str = "localhost"  # Docker 컨테이너명 (로컬 개발 시 환경변수로 "localhost" 오버라이드)
     port: int = 6379
     db: int = 0
 
