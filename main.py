@@ -8,7 +8,7 @@ from app.domain.path import router as path_router
 from app.domain.redis_command import router as redis_command_router
 from app.domain.robot import router as robot_router
 from app.util.mqtt.client import mqtt_service
-from app.util.mqtt.handlers import CommandHandler, StatusHandler
+from app.util.mqtt.handlers import CommandHandler
 from app.util.redis.client import redis_service
 from app.util.redis.init_data import init_node_data
 from app.util.redis.handlers.command import redis_command_handler
@@ -22,7 +22,6 @@ from app.util.redis.handlers.command import redis_command_handler
 def register_mqtt_handlers():
     """MQTT 핸들러 등록"""
     mqtt_service.register_handler(CommandHandler())
-    mqtt_service.register_handler(StatusHandler())
 
 
 def register_redis_handlers():
