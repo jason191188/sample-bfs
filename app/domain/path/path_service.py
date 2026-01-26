@@ -54,7 +54,7 @@ class PathCalculationService:
 
         # 4. 경로 문자열 생성
         actual_end = path[-1]
-        path_str = format_path(actual_end, start_node, path, directions)
+        path_str = format_path(actual_end, start_node, path, directions, end_node)
 
         return path_str, actual_end
 

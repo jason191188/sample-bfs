@@ -87,9 +87,20 @@ def cut_path(map_name: str, path: list[int], directions: list[str], robot_id: st
     return cut_path_result, cut_directions_result
 
 
-def format_path(end: int, start: int, path: list[int], directions: list[str]) -> str:
-    """경로를 문자열 형식으로 변환: {목적지}!{출발지},{방향}/{노드},{방향}/... (목적지 제외)"""
-    result = f"{end}!{start},{directions[0]}/"
+def format_path(end: int, start: int, path: list[int], directions: list[str], final_node: int) -> str:
+    """경로를 문자열 형식으로 변환: {final_node}/{final_direction}~{end}!{start},{방향}/{노드},{방향}/...
+
+    Args:
+        end: 잘린 경로의 마지막 노드
+        start: 시작 노드
+        path: 경로 노드 리스트
+        directions: 방향 리스트
+        final_node: 원래 목적지 노드
+    """
+    # final_direction: 마지막 진행방향
+    final_direction = directions[-1]
+
+    result = f"{final_node}/{final_direction}~{end}!{start},{directions[0]}/"
     # 마지막 목적지 노드 제외 (len(path) - 1)
     for i in range(1, len(path) - 1):
         result += f"{path[i]},{directions[i]}/"
