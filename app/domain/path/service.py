@@ -76,6 +76,10 @@ def cut_path(map_name: str, path: list[int], directions: list[str], robot_id: st
             cut_index = i
             break
 
+    # 최대 20개 노드로 제한
+    if cut_index > 20:
+        cut_index = 20
+
     # 경로와 방향을 cut_index까지만 자르기
     cut_path_result = path[:cut_index]
     cut_directions_result = directions[:cut_index]

@@ -9,6 +9,7 @@ from app.util.mqtt.handlers.models import (
     RemovePathPayload,
 )
 from app.util.redis.init_data import release_node, release_robot_nodes
+from app.util.redis.client import redis_service
 from app.domain.path.path_service import path_calculation_service
 from app.domain.robot.robot_state_service import robot_state_service
 
@@ -35,6 +36,8 @@ class CommandHandler(MQTTHandler):
             self._handle_arrive(map_name, robot_id, payload)
         elif command == "remove_path":
             self._handle_remove(map_name, robot_id, payload)
+        elif command == "error":
+            self._handle_error(map_name, robot_id, payload)
 
     def _determine_destination(self, current_node: int, final_node: int) -> tuple[int, bool]:
         """목적지 결정 (복귀 로직)
@@ -129,3 +132,19 @@ class CommandHandler(MQTTHandler):
             print(f"[Remove] Robot {robot_id} released node {data.current_node}.")
         else:
             print(f"[Remove] Failed to release node {data.current_node} for robot {robot_id}.")
+
+        # Redis로 remove 정보 publish
+        message = json.dumps({
+            "type": "remove",
+            "payload": json.loads(payload)
+        })
+        redis_service.publish("smartfarm:robot", message)
+
+    def _handle_error(self, map_name: str, robot_id: str, payload: str) -> None:
+        """로봇 에러 처리 - Redis로 에러 정보 publish"""
+        message = json.dumps({
+            "type": "error",
+            "payload": json.loads(payload)
+        })
+        redis_service.publish("smartfarm:robot", message)
+        print(f"[Error] Robot {robot_id}: {payload}")
