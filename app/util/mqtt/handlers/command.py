@@ -76,10 +76,33 @@ class CommandHandler(MQTTHandler):
         """배터리 상태 처리 - Redis에 저장"""
         data = BatteryPayload(**json.loads(payload))
 
+        # 전압을 퍼센트로 변환
+        battery_percent = self._calculate_battery_percent(
+            float(data.battery_state),
+            data.battery_charging_state
+        )
+
         # Redis에 배터리 정보 저장
-        battery_level = float(data.battery_state)
-        robot_state_service.update_battery(map_name, robot_id, battery_level, data.battery_charging_state)
-        print(f"[Battery] Robot {robot_id}: Battery {battery_level}% (charging: {data.battery_charging_state})")
+        robot_state_service.update_battery(map_name, robot_id, battery_percent, data.battery_charging_state)
+        print(f"[Battery] Robot {robot_id}: Battery {battery_percent}% (voltage: {data.battery_state}V, charging: {data.battery_charging_state})")
+
+    def _calculate_battery_percent(self, input_volt: float, charging_state: int) -> int:
+        """배터리 전압을 퍼센트로 변환"""
+        max_volt = 16.5
+        min_volt = 13.5
+
+        # 충전 상수 (충전 중일 때 전압 보정)
+        charging_constant = (max_volt - input_volt) * 0.07
+
+        # 충전 중이면 충전 상수 적용
+        if charging_state == 1:
+            input_volt -= charging_constant
+
+        # 퍼센트 계산
+        battery_percent = round((input_volt - min_volt) / (max_volt - min_volt) * 100)
+
+        # 0~100 범위로 제한
+        return max(0, min(100, battery_percent))
 
     def _handle_arrive(self, map_name: str, robot_id: str, payload: str) -> None:
         """로봇 도착 처리 - 해당 로봇이 점유한 모든 노드 해제"""
