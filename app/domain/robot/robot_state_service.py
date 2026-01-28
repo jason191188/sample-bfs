@@ -28,7 +28,7 @@ class RobotStateService:
         map_name: str,
         robot_id: str,
         current_node: int = None,
-        battery_level: float = None,
+        battery_state: float = None,
         charging_state: int = None
     ) -> None:
         """운영 상태 변화 감지 및 일일 통계 업데이트
@@ -37,7 +37,7 @@ class RobotStateService:
             map_name: 맵 이름
             robot_id: 로봇 ID
             current_node: 현재 노드 (업데이트된 경우)
-            battery_level: 배터리 잔량 (업데이트된 경우)
+            battery_state: 배터리 잔량 (업데이트된 경우)
             charging_state: 충전 상태 (업데이트된 경우)
         """
         # 현재 저장된 상태 조회
@@ -48,20 +48,20 @@ class RobotStateService:
         # 최신 값으로 업데이트
         if current_node is not None:
             state["current_node"] = current_node
-        if battery_level is not None:
-            state["battery_level"] = battery_level
+        if battery_state is not None:
+            state["battery_state"] = battery_state
         if charging_state is not None:
             state["charging_state"] = charging_state
 
         # 필수 필드 확인
-        if "current_node" not in state or "battery_level" not in state or "charging_state" not in state:
+        if "current_node" not in state or "battery_state" not in state or "charging_state" not in state:
             return
 
         # 현재 운영 상태 결정
         new_state = RobotOperationState.determine_state(
             state["current_node"],
             state["charging_state"],
-            state["battery_level"]
+            state["battery_state"]
         )
 
         # 상태 변화 확인 및 업데이트
@@ -87,18 +87,39 @@ class RobotStateService:
         if final_node is not None:
             redis_service.hset(key, "final_node", str(final_node))
 
-        # 운영 상태 변화 감지
+        # current_node 변경에 따른 status 자동 업데이트
+        if current_node == 2:
+            # 2번 노드일 때: 배터리와 충전 상태를 확인하여 status 결정
+            state = self.get_robot_state(map_name, robot_id)
+            if state:
+                battery = state.get("battery_state", 100)
+                charging = state.get("charging_state", 0)
+
+                # 배터리가 100% 미만이고 충전 중이면 "charging"
+                if battery < 100 and charging == 1:
+                    redis_service.hset(key, "status", "charging")
+                else:
+                    # 그 외에는 대기중
+                    redis_service.hset(key, "status", "idle")
+            else:
+                # 상태 정보가 없으면 기본값 idle
+                redis_service.hset(key, "status", "idle")
+        else:
+            # 다른 노드로 이동 → 작업중
+            redis_service.hset(key, "status", "working")
+
+        # 운영 상태 변화 감지 (일일 통계용)
         self._check_and_update_operation_state(map_name, robot_id, current_node=current_node)
 
         return True
 
-    def update_battery(self, map_name: str, robot_id: str, battery_level: float, charging_state: int = 0) -> bool:
+    def update_battery(self, map_name: str, robot_id: str, battery_state: float, charging_state: int = 0) -> bool:
         """로봇 배터리 정보 업데이트
 
         Args:
             map_name: 맵 이름
             robot_id: 로봇 ID
-            battery_level: 배터리 잔량 (%)
+            battery_state: 배터리 잔량 (%)
             charging_state: 충전 상태 (0: 미충전, 1: 충전중)
 
         Returns:
@@ -106,14 +127,23 @@ class RobotStateService:
         """
         key = self._get_robot_key(map_name, robot_id)
 
-        redis_service.hset(key, "battery_level", str(battery_level))
+        redis_service.hset(key, "battery_state", str(battery_state))
         redis_service.hset(key, "charging_state", str(charging_state))
         redis_service.hset(key, "updated_at", datetime.now().isoformat())
+
+        # 배터리/충전 상태 변경 시 status도 업데이트 (현재 노드가 2번인 경우에만)
+        state = self.get_robot_state(map_name, robot_id)
+        if state and state.get("current_node") == 2:
+            # 2번 노드에서 배터리/충전 상태 변경 시 status 재계산
+            if battery_state < 100 and charging_state == 1:
+                redis_service.hset(key, "status", "charging")
+            else:
+                redis_service.hset(key, "status", "idle")
 
         # 운영 상태 변화 감지
         self._check_and_update_operation_state(
             map_name, robot_id,
-            battery_level=battery_level,
+            battery_state=battery_state,
             charging_state=charging_state
         )
 
@@ -162,8 +192,8 @@ class RobotStateService:
             state["current_node"] = int(state["current_node"])
         if "final_node" in state:
             state["final_node"] = int(state["final_node"])
-        if "battery_level" in state:
-            state["battery_level"] = float(state["battery_level"])
+        if "battery_state" in state:
+            state["battery_state"] = float(state["battery_state"])
         if "charging_state" in state:
             state["charging_state"] = int(state["charging_state"])
 
@@ -196,8 +226,8 @@ class RobotStateService:
                     state["current_node"] = int(state["current_node"])
                 if "final_node" in state:
                     state["final_node"] = int(state["final_node"])
-                if "battery_level" in state:
-                    state["battery_level"] = float(state["battery_level"])
+                if "battery_state" in state:
+                    state["battery_state"] = float(state["battery_state"])
                 if "charging_state" in state:
                     state["charging_state"] = int(state["charging_state"])
 

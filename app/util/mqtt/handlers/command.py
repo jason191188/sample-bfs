@@ -12,6 +12,7 @@ from app.util.redis.init_data import release_node, release_robot_nodes
 from app.util.redis.client import redis_service
 from app.domain.path.path_service import path_calculation_service
 from app.domain.robot.robot_state_service import robot_state_service
+from app.util.validators import MapNameValidator
 
 
 class CommandHandler(MQTTHandler):
@@ -27,6 +28,11 @@ class CommandHandler(MQTTHandler):
             return
 
         map_name, robot_id, _, command = parts
+
+        # 맵 이름 검증
+        if not MapNameValidator.validate_silent(map_name):
+            print(f"[MQTT] Invalid map name: {map_name}. Must start with 'smartfarm_'. Ignoring message.")
+            return
 
         if command == "path_plan":
             self._handle_path(map_name, robot_id, payload)
@@ -70,9 +76,9 @@ class CommandHandler(MQTTHandler):
 
         # Redis에 로봇 위치 정보 저장
         robot_state_service.update_position(map_name, robot_id, data.current_node, destination)
-        robot_state_service.update_status(map_name, robot_id, "moving")
 
         # PathCalculationService를 사용하여 경로 계산 및 응답
+        # (상태는 경로 전송 성공 시 path_service에서 "moving"으로 변경)
         path_calculation_service.calculate_and_send_path(map_name, robot_id, data.current_node, destination, is_return)
 
     def _handle_battery(self, map_name: str, robot_id: str, payload: str) -> None:

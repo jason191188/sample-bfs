@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 
 from app.config.settings import settings
 from app.domain.path.models import (
@@ -17,6 +17,7 @@ from app.util.redis.init_data import (
     get_occupied_nodes,
     release_robot_nodes,
 )
+from app.util.validators import validate_map_name
 
 router = APIRouter(prefix="/path", tags=["path"])
 
@@ -84,14 +85,17 @@ async def release_node_endpoint(request: ReleaseNodeRequest):
 
 
 @router.get("/occupied/{map_name}", response_model=OccupiedNodesResponse)
-async def get_occupied_nodes_endpoint(map_name: str = "default"):
+async def get_occupied_nodes_endpoint(map_name: str = Depends(validate_map_name)):
     """점유된 노드 목록 조회 (맵별)"""
     occupied = get_occupied_nodes(map_name)
     return OccupiedNodesResponse(occupied_nodes=occupied)
 
 
 @router.delete("/{map_name}/robot/{robot_id}", response_model=NodeOccupationResponse)
-async def release_robot_nodes_endpoint(map_name: str, robot_id: str):
+async def release_robot_nodes_endpoint(
+    robot_id: str,
+    map_name: str = Depends(validate_map_name)
+):
     """특정 로봇이 점유한 모든 노드 해제 (맵별)"""
     count = release_robot_nodes(map_name, robot_id)
     return NodeOccupationResponse(

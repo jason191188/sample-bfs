@@ -3,6 +3,7 @@ import json
 
 from app.domain.path.service import bfs, cut_path, format_path
 from app.util.mqtt.client import mqtt_service
+from app.domain.robot.robot_state_service import robot_state_service
 
 
 class PathCalculationService:
@@ -112,8 +113,19 @@ class PathCalculationService:
         response_payload = json.dumps({"path": path_str})
 
         if mqtt_service.publish(response_topic, response_payload):
+            # 상태 변경 로직
+            status_msg = ""
+            if is_return:
+                # 복귀 경로인 경우 "return"으로 변경
+                robot_state_service.update_status(map_name, robot_id, "return")
+                status_msg = " - Status: return"
+            elif start_node == 2:
+                # 2번 노드에서 출발하는 경우 "moving"으로 변경
+                robot_state_service.update_status(map_name, robot_id, "moving")
+                status_msg = " - Status: moving"
+
             path_type = "Return path" if is_return else "Path"
-            print(f"[Path] Robot {robot_id}: {path_type} sent ({start_node} → {actual_end})")
+            print(f"[Path] Robot {robot_id}: {path_type} sent ({start_node} → {actual_end}){status_msg}")
             if actual_end != end_node:
                 print(f"       Path cut at node {actual_end} (original destination: {end_node})")
         else:

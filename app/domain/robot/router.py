@@ -1,17 +1,21 @@
 """로봇 상태 조회 API 라우터"""
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 
 from app.domain.robot.robot_state_service import robot_state_service
+from app.util.validators import validate_map_name
 
 router = APIRouter(prefix="/robots", tags=["robots"])
 
 
 @router.get("/{map_name}/{robot_id}")
-async def get_robot_state(map_name: str, robot_id: str):
+async def get_robot_state(
+    robot_id: str,
+    map_name: str = Depends(validate_map_name)
+):
     """특정 로봇의 상태 조회
 
     Args:
-        map_name: 맵 이름
+        map_name: 맵 이름 (smartfarm_ prefix 필수)
         robot_id: 로봇 ID
 
     Returns:
@@ -30,11 +34,11 @@ async def get_robot_state(map_name: str, robot_id: str):
 
 
 @router.get("/{map_name}")
-async def get_all_robots_in_map(map_name: str):
+async def get_all_robots_in_map(map_name: str = Depends(validate_map_name)):
     """특정 맵의 모든 로봇 상태 조회
 
     Args:
-        map_name: 맵 이름
+        map_name: 맵 이름 (smartfarm_ prefix 필수)
 
     Returns:
         맵 내 모든 로봇의 상태 정보
@@ -49,11 +53,14 @@ async def get_all_robots_in_map(map_name: str):
 
 
 @router.delete("/{map_name}/{robot_id}")
-async def delete_robot_state(map_name: str, robot_id: str):
+async def delete_robot_state(
+    robot_id: str,
+    map_name: str = Depends(validate_map_name)
+):
     """로봇 상태 삭제
 
     Args:
-        map_name: 맵 이름
+        map_name: 맵 이름 (smartfarm_ prefix 필수)
         robot_id: 로봇 ID
 
     Returns:

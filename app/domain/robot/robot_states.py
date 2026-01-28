@@ -11,13 +11,13 @@ class RobotOperationState(Enum):
     IDLE = "idle"  # 2번 노드에서 충전 안하고 대기 중 (대기 중)
 
     @staticmethod
-    def determine_state(current_node: int, charging_state: int, battery_level: float) -> "RobotOperationState":
+    def determine_state(current_node: int, charging_state: int, battery_state: float) -> "RobotOperationState":
         """로봇의 현재 상태를 판단
 
         Args:
             current_node: 현재 노드 번호
             charging_state: 충전 상태 (0: 미충전, 1: 충전중)
-            battery_level: 배터리 잔량 (0-100)
+            battery_state: 배터리 잔량 (0-100)
 
         Returns:
             RobotOperationState
@@ -29,7 +29,7 @@ class RobotOperationState(Enum):
         # 2번 노드에 있을 때
         if charging_state == 1:
             # 충전 중
-            if battery_level >= 100:
+            if battery_state >= 100:
                 return RobotOperationState.FULL_CHARGE_IDLE
             else:
                 return RobotOperationState.CHARGING
