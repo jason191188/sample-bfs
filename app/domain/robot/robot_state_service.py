@@ -4,6 +4,8 @@ from typing import Optional
 from datetime import datetime
 
 from app.util.redis.client import redis_service
+from app.domain.robot.robot_states import RobotOperationState
+from app.domain.robot.daily_stats_service import daily_stats_service
 
 
 class RobotStateService:
@@ -20,6 +22,50 @@ class RobotStateService:
             Redis 키 (예: "robot:state:map1:robot1")
         """
         return f"robot:state:{map_name}:{robot_id}"
+
+    def _check_and_update_operation_state(
+        self,
+        map_name: str,
+        robot_id: str,
+        current_node: int = None,
+        battery_level: float = None,
+        charging_state: int = None
+    ) -> None:
+        """운영 상태 변화 감지 및 일일 통계 업데이트
+
+        Args:
+            map_name: 맵 이름
+            robot_id: 로봇 ID
+            current_node: 현재 노드 (업데이트된 경우)
+            battery_level: 배터리 잔량 (업데이트된 경우)
+            charging_state: 충전 상태 (업데이트된 경우)
+        """
+        # 현재 저장된 상태 조회
+        state = self.get_robot_state(map_name, robot_id)
+        if not state:
+            return
+
+        # 최신 값으로 업데이트
+        if current_node is not None:
+            state["current_node"] = current_node
+        if battery_level is not None:
+            state["battery_level"] = battery_level
+        if charging_state is not None:
+            state["charging_state"] = charging_state
+
+        # 필수 필드 확인
+        if "current_node" not in state or "battery_level" not in state or "charging_state" not in state:
+            return
+
+        # 현재 운영 상태 결정
+        new_state = RobotOperationState.determine_state(
+            state["current_node"],
+            state["charging_state"],
+            state["battery_level"]
+        )
+
+        # 상태 변화 확인 및 업데이트
+        daily_stats_service.start_state(map_name, robot_id, new_state)
 
     def update_position(self, map_name: str, robot_id: str, current_node: int, final_node: int = None) -> bool:
         """로봇 위치 정보 업데이트
@@ -41,6 +87,9 @@ class RobotStateService:
         if final_node is not None:
             redis_service.hset(key, "final_node", str(final_node))
 
+        # 운영 상태 변화 감지
+        self._check_and_update_operation_state(map_name, robot_id, current_node=current_node)
+
         return True
 
     def update_battery(self, map_name: str, robot_id: str, battery_level: float, charging_state: int = 0) -> bool:
@@ -60,6 +109,13 @@ class RobotStateService:
         redis_service.hset(key, "battery_level", str(battery_level))
         redis_service.hset(key, "charging_state", str(charging_state))
         redis_service.hset(key, "updated_at", datetime.now().isoformat())
+
+        # 운영 상태 변화 감지
+        self._check_and_update_operation_state(
+            map_name, robot_id,
+            battery_level=battery_level,
+            charging_state=charging_state
+        )
 
         return True
 

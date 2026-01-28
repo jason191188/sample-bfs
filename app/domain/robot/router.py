@@ -1,5 +1,4 @@
 """로봇 상태 조회 API 라우터"""
-from typing import Optional
 from fastapi import APIRouter, HTTPException
 
 from app.domain.robot.robot_state_service import robot_state_service

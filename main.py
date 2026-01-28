@@ -12,6 +12,7 @@ from app.util.mqtt.handlers import CommandHandler
 from app.util.redis.client import redis_service
 from app.util.redis.init_data import init_node_data
 from app.util.redis.handlers.command import redis_command_handler
+from app.util.scheduler import daily_reset_scheduler
 
 """ TODO: 
         - 도커파일 및 도커 컴포즈 설정
@@ -44,9 +45,13 @@ async def lifespan(app: FastAPI):
 
     register_redis_handlers()
 
+    # 매일 00시 자동 초기화 스케줄러 시작
+    daily_reset_scheduler.start()
+
     yield
 
     # 종료 시 연결 해제
+    daily_reset_scheduler.stop()
     mqtt_service.disconnect()
     redis_service.disconnect()
 
