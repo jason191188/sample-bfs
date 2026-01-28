@@ -23,6 +23,23 @@ class RobotStateService:
         """
         return f"robot:state:{map_name}:{robot_id}"
 
+    def _publish_state_change(self, map_name: str, robot_id: str) -> None:
+        """로봇 상태 변경을 Redis Pub/Sub으로 전송
+
+        Args:
+            map_name: 맵 이름
+            robot_id: 로봇 ID
+        """
+        # 현재 상태 조회
+        state = self.get_robot_state(map_name, robot_id)
+        if not state:
+            return
+
+        # Redis 채널로 상태 변경 전송
+        channel = f"{map_name}/robot/{robot_id}/state"
+        payload = json.dumps(state)
+        redis_service.publish(channel, payload)
+
     def _check_and_update_operation_state(
         self,
         map_name: str,
@@ -111,6 +128,9 @@ class RobotStateService:
         # 운영 상태 변화 감지 (일일 통계용)
         self._check_and_update_operation_state(map_name, robot_id, current_node=current_node)
 
+        # 상태 변경 사항을 Redis Pub/Sub으로 전송
+        self._publish_state_change(map_name, robot_id)
+
         return True
 
     def update_battery(self, map_name: str, robot_id: str, battery_state: float, charging_state: int = 0) -> bool:
@@ -147,6 +167,9 @@ class RobotStateService:
             charging_state=charging_state
         )
 
+        # 상태 변경 사항을 Redis Pub/Sub으로 전송
+        self._publish_state_change(map_name, robot_id)
+
         return True
 
     def update_status(self, map_name: str, robot_id: str, status: str, node: int = None) -> bool:
@@ -155,7 +178,7 @@ class RobotStateService:
         Args:
             map_name: 맵 이름
             robot_id: 로봇 ID
-            status: 상태 (예: "idle", "moving", "arrived", "charging")
+            status: 상태 (예: "idle", "moving", "arrived", "charging", "return")
             node: 관련 노드 (Optional)
 
         Returns:
@@ -168,6 +191,9 @@ class RobotStateService:
 
         if node is not None:
             redis_service.hset(key, "current_node", str(node))
+
+        # 상태 변경 사항을 Redis Pub/Sub으로 전송
+        self._publish_state_change(map_name, robot_id)
 
         return True
 
