@@ -2,8 +2,9 @@ from pydantic_settings import BaseSettings
 
 
 class MQTTSettings(BaseSettings):
-    broker: str = "dev-mqtt.hprobot.cloud"
+    broker: str = "mqtt.hprobot.cloud"
     port: int = 1883
+    client_id: str = "SmartfarmSub-"
 
     class Config:
         env_prefix = "MQTT_"

@@ -52,13 +52,16 @@ class MQTTService:
         # 이미 연결된 상태면 바로 구독
         if self.client and self.client.is_connected():
             self.client.subscribe(handler.topic)
+        
 
     def connect(self):
-        self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+        import uuid
+        client_id = f"{settings.mqtt.client_id}{uuid.uuid4().hex[:8]}"
+        self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=client_id)
         self.client.on_connect = self._on_connect
         self.client.on_message = self._on_message
         try:
-            self.client.connect(self.broker, self.port)
+            self.client.connect(self.broker, self.port, keepalive=30)
             self.client.loop_start()
         except Exception as e:
             print(f"MQTT 브로커 연결 실패: {e}")

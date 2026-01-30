@@ -25,11 +25,15 @@ class RedisService:
             self.client = None
 
     def disconnect(self):
-        # Pub/Sub 스레드 종료
-        if self.pubsub:
-            self.pubsub.close()
+        # Pub/Sub 스레드 먼저 중지
         if self.pubsub_thread:
+            self.pubsub_thread.stop()
             self.pubsub_thread.join(timeout=5)
+
+        # Pub/Sub 구독 해제 및 종료
+        if self.pubsub:
+            self.pubsub.unsubscribe()
+            self.pubsub.close()
 
         # Redis 클라이언트 종료
         if self.client:
