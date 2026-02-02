@@ -10,7 +10,7 @@ from app.domain.robot import router as robot_router
 from app.util.mqtt.client import mqtt_service
 from app.util.mqtt.handlers import CommandHandler, StatusHandler
 from app.util.redis.client import redis_service
-from app.util.redis.init_data import init_node_data
+from app.util.redis.init_data import init_node_data, init_testbed_node_data
 from app.util.redis.handlers.command import redis_command_handler
 from app.util.scheduler import daily_reset_scheduler
 
@@ -41,8 +41,9 @@ async def lifespan(app: FastAPI):
     # Redis 연결 및 핸들러 등록
     redis_service.connect()
 
-    # 기본 맵 노드 초기화
+    # 맵 노드 초기화
     init_node_data("smartfarm_gangnam")
+    init_testbed_node_data("smartfarm_testbed")
 
     register_redis_handlers()
 

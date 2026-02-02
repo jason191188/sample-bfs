@@ -77,6 +77,49 @@ def init_node_data(map_name: str = "default"):
 
 
 
+def init_testbed_node_data(map_name: str = "smartfarm_testbed"):
+    """테스트베드 맵 노드 초기 데이터 생성 (반시계 방향 단방향 순환)
+
+    맵 구조:
+        25-26-27-28
+        17-18-19-20
+        9 -10-11-12
+        3 -1 -2 -4
+
+    순환 경로 (반시계): 3→9→17→25→26→27→28→20→12→4→2→1→3
+    """
+    if not redis_service.is_connected():
+        return
+
+    nodes_key = _get_nodes_key(map_name)
+
+    existing = redis_service.hgetall(nodes_key)
+    if existing:
+        print(f"[Init] Nodes already exist for map: {map_name}")
+        return
+
+    # 반시계 방향 단방향 연결
+    nodes = {
+        1:  {"l": 3, "r": 0, "u": 0, "d": 0, "occupied": None},
+        2:  {"l": 1, "r": 0, "u": 0, "d": 0, "occupied": None},
+        3:  {"l": 0, "r": 0, "u": 9, "d": 0, "occupied": None},
+        4:  {"l": 2, "r": 0, "u": 0, "d": 0, "occupied": None},
+        9:  {"l": 0, "r": 0, "u": 17, "d": 0, "occupied": None},
+        12: {"l": 0, "r": 0, "u": 0, "d": 4, "occupied": None},
+        17: {"l": 0, "r": 0, "u": 25, "d": 0, "occupied": None},
+        20: {"l": 0, "r": 0, "u": 0, "d": 12, "occupied": None},
+        25: {"l": 0, "r": 26, "u": 0, "d": 0, "occupied": None},
+        26: {"l": 0, "r": 27, "u": 0, "d": 0, "occupied": None},
+        27: {"l": 0, "r": 28, "u": 0, "d": 0, "occupied": None},
+        28: {"l": 0, "r": 0, "u": 0, "d": 20, "occupied": None},
+    }
+
+    for node_id, node_data in nodes.items():
+        redis_service.hset(nodes_key, str(node_id), json.dumps(node_data))
+
+    print(f"[Init] Created {len(nodes)} nodes for map: {map_name}")
+
+
 def get_all_nodes(map_name: str = "default") -> dict:
     """모든 노드 데이터 조회 (맵별)
 

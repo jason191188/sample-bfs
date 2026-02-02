@@ -2,6 +2,7 @@ import json
 from datetime import datetime
 
 from app.util.mqtt.handler import MQTTHandler
+from app.util.mqtt.client import mqtt_service
 
 
 class StatusHandler(MQTTHandler):
@@ -26,3 +27,4 @@ class StatusHandler(MQTTHandler):
         elif event == "disconnected":
             time = datetime.fromtimestamp(data["disconnected_at"] / 1000).strftime("%Y-%m-%d %H:%M:%S")
             print(f"[MQTT Event] Client disconnected: {client_id} at {time} (reason: {data.get('reason', 'unknown')})")
+            mqtt_service.publish("events/client/test", payload)
