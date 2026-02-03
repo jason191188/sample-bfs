@@ -36,6 +36,7 @@ class MQTTService:
     def _on_message(self, client, userdata, msg):
         topic = msg.topic
         payload = msg.payload.decode("utf-8")
+        print(f"MQTT 메시지 수신 - 토픽: {topic}, 페이로드: {payload}")
 
         # 매칭되는 핸들러 호출
         for pattern, handler in self._handlers.items():
@@ -54,10 +55,15 @@ class MQTTService:
             self.client.subscribe(handler.topic)
 
     def connect(self):
-        self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+        self.client = mqtt.Client(
+            mqtt.CallbackAPIVersion.VERSION2,
+            client_id=settings.mqtt.client_id,
+            clean_session=True,
+        )
         self.client.on_connect = self._on_connect
         self.client.on_message = self._on_message
         try:
+            print(f"MQTT 클라이언트 ID: {settings.mqtt.client_id}")
             self.client.connect(self.broker, self.port)
             self.client.loop_start()
         except Exception as e:

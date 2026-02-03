@@ -50,12 +50,12 @@ class CommandHandler(MQTTHandler):
 
         Args:
             current_node: 현재 노드
-            final_node: 요청된 목적지 (0이면 복귀 시그널)
+            final_node: 요청된 목적지 (0 또는 2이면 복귀 시그널)
 
         Returns:
             (실제 목적지, 복귀 여부)
         """
-        if final_node == 0:
+        if final_node == 0 or final_node == 2:
             # 복귀 시그널 → 바로 2번 노드로 이동
             return 2, True
         else:
