@@ -53,6 +53,7 @@ class MQTTService:
         # 이미 연결된 상태면 바로 구독
         if self.client and self.client.is_connected():
             self.client.subscribe(handler.topic)
+        
 
     def connect(self):
         self.client = mqtt.Client(
@@ -64,7 +65,7 @@ class MQTTService:
         self.client.on_message = self._on_message
         try:
             print(f"MQTT 클라이언트 ID: {settings.mqtt.client_id}")
-            self.client.connect(self.broker, self.port)
+            self.client.connect(self.broker, self.port, keepalive=30)
             self.client.loop_start()
         except Exception as e:
             print(f"MQTT 브로커 연결 실패: {e}")
