@@ -85,7 +85,6 @@ class ConnectionHandler(MQTTHandler):
 
         parsed = self._parse_client_id(client_id)
         if not parsed:
-            print(f"[Connection] Connected - clientid 형식 불가: {client_id}")
             return
 
         now = datetime.now().isoformat()
@@ -118,7 +117,6 @@ class ConnectionHandler(MQTTHandler):
 
         parsed = self._parse_client_id(client_id)
         if not parsed:
-            print(f"[Connection] Disconnected - clientid 형식 불가: {client_id}")
             return
 
         key = self._get_connection_key(parsed["device_name"], parsed["map_name"], parsed["device_id"])
