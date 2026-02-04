@@ -12,6 +12,7 @@ from app.util.redis.init_data import release_node, release_robot_nodes
 from app.util.redis.client import redis_service
 from app.domain.path.path_service import path_calculation_service
 from app.domain.robot.robot_state_service import robot_state_service
+from app.domain.robot.robot_status import RobotStatus
 from app.util.validators import MapNameValidator
 
 
@@ -42,7 +43,7 @@ class CommandHandler(MQTTHandler):
             self._handle_arrive(map_name, robot_id, payload)
         elif command == "remove_path":
             self._handle_remove(map_name, robot_id, payload)
-        elif command == "error":
+        elif command == "robot_error":
             self._handle_error(map_name, robot_id, payload)
 
     def _determine_destination(self, current_node: int, final_node: int) -> tuple[int, bool]:
@@ -74,11 +75,10 @@ class CommandHandler(MQTTHandler):
         else:
             print(f"[Path] Robot {robot_id}: Path request (node {data.current_node} → {destination})")
 
-        # Redis에 로봇 위치 정보 저장
-        robot_state_service.update_position(map_name, robot_id, data.current_node, destination)
+        # Redis에 로봇 위치 정보 저장 (is_return 플래그 전달)
+        robot_state_service.update_position(map_name, robot_id, data.current_node, destination, is_return)
 
         # PathCalculationService를 사용하여 경로 계산 및 응답
-        # (상태는 경로 전송 성공 시 path_service에서 "moving"으로 변경)
         path_calculation_service.calculate_and_send_path(map_name, robot_id, data.current_node, destination, is_return)
 
     def _handle_battery(self, map_name: str, robot_id: str, payload: str) -> None:
@@ -117,8 +117,8 @@ class CommandHandler(MQTTHandler):
         """로봇 도착 처리 - 해당 로봇이 점유한 모든 노드 해제"""
         data = ArrivePayload(**json.loads(payload))
 
-        # Redis에 로봇 상태 저장 (도착)
-        robot_state_service.update_status(map_name, robot_id, "arrived", data.current_node)
+        # Redis에 로봇 상태 저장 (도착 - DONE)
+        robot_state_service.update_status(map_name, robot_id, RobotStatus.DONE, data.current_node)
 
         # 해당 로봇이 점유한 모든 노드 해제
         released_count = release_robot_nodes(map_name, robot_id)
@@ -141,16 +141,20 @@ class CommandHandler(MQTTHandler):
 
         # Redis로 remove 정보 publish
         message = json.dumps({
-            "type": "remove",
+            "type": "REMOVE",
             "payload": json.loads(payload)
         })
-        redis_service.publish("smartfarm:robot", message)
+        redis_service.publish("smartfarm::robot", message)
 
     def _handle_error(self, map_name: str, robot_id: str, payload: str) -> None:
-        """로봇 에러 처리 - Redis로 에러 정보 publish"""
+        """로봇 에러 처리 - 상태를 ERROR로 변경하고 Redis로 에러 정보 publish"""
+        # 로봇 상태를 ERROR로 변경
+        robot_state_service.update_status(map_name, robot_id, RobotStatus.ERROR)
+
+        # Redis로 에러 정보 publish
         message = json.dumps({
-            "type": "error",
+            "type": "ERROR",
             "payload": json.loads(payload)
         })
-        redis_service.publish("smartfarm:robot", message)
+        redis_service.publish("smartfarm::robot", message)
         print(f"[Error] Robot {robot_id}: {payload}")

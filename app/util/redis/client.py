@@ -102,6 +102,7 @@ class RedisService:
         """
         if self.client:
             self.client.publish(channel, message)
+            print(f"Redis 채널에 메시지 발행: {channel} -> {message}")
             return True
         return False
 

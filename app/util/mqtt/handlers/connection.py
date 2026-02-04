@@ -1,37 +1,70 @@
 """MQTT 클라이언트 연결/종료 이벤트 핸들러"""
 import json
+from datetime import datetime
+from typing import Optional
 
 from app.util.mqtt.handler import MQTTHandler
+from app.util.redis.client import redis_service
 
 
 class ConnectionHandler(MQTTHandler):
     """MQTT 브로커의 클라이언트 연결/종료 이벤트 핸들러
 
+    클라이언트 ID 형식: {deviceName}-{mapName}-{deviceId}-{UUID}
+    예시: robot-smartfarm_gangnam-1-a1b2c3d4-e5f6-7890-abcd-ef1234567890
+
+    Redis 키 구조 (연결 시 생성, 해제 시 삭제):
+        mqtt:connection:{deviceName}:{mapName}:{deviceId}
+            - status: "connected"
+            - connected_at: 연결 시간
+            - ip: IP 주소
+            - device_name: 디바이스 이름
+            - device_id: 디바이스 ID
+            - map_name: 맵 이름
+            - uuid: UUID
+
     구독 토픽:
-        - events/client/connected: 클라이언트가 브로커에 연결될 때
-        - events/client/disconnected: 클라이언트가 브로커에서 연결이 끊어질 때
-
-    Note:
-        이 기능을 사용하려면 MQTT 브로커(예: Mosquitto)에서
-        sys_interval 설정이 활성화되어 있어야 합니다.
-
-        Mosquitto 설정 예시:
-            sys_interval 10
-            connection_messages true
+        - events/client/connected
+        - events/client/disconnected
     """
+
+    REDIS_KEY_PREFIX = "mqtt:connection:"
 
     @property
     def topic(self) -> str:
-        # events/# 패턴으로 모든 이벤트 토픽 구독
         return "events/client/#"
 
-    def handle(self, topic: str, payload: str) -> None:
-        """MQTT 연결 이벤트 처리
+    def _parse_client_id(self, client_id: str) -> Optional[dict]:
+        """clientid를 구성 요소로 파싱
+
+        형식: {deviceName}-{mapName}-{deviceId}-{UUID}
+        UUID 안에 하이픈이 포함되어 있으므로 앞 3개만 분리합니다.
 
         Args:
-            topic: MQTT 토픽 (events/client/connected 또는 events/client/disconnected)
-            payload: 이벤트 페이로드 (JSON 형식의 클라이언트 정보)
+            client_id: MQTT 클라이언트 ID
+
+        Returns:
+            파싱된 정보 dict, 실패 시 None
         """
+        parts = client_id.split("-", 3)
+        if len(parts) != 4:
+            return None
+
+        device_name, map_name, device_id, uuid = parts
+        if not device_name or not map_name or not device_id or not uuid:
+            return None
+
+        return {
+            "device_name": device_name,
+            "map_name": map_name,
+            "device_id": device_id,
+            "uuid": uuid,
+        }
+
+    def _get_connection_key(self, device_name: str, map_name: str, device_id: str) -> str:
+        return f"{self.REDIS_KEY_PREFIX}{device_name}:{map_name}:{device_id}"
+
+    def handle(self, topic: str, payload: str) -> None:
         if topic == "events/client/connected":
             self._handle_client_connected(payload)
         elif topic == "events/client/disconnected":
@@ -40,66 +73,55 @@ class ConnectionHandler(MQTTHandler):
             print(f"[Connection] Unknown event topic: {topic}")
 
     def _handle_client_connected(self, payload: str) -> None:
-        """클라이언트 연결 이벤트 처리
-
-        Args:
-            payload: 연결된 클라이언트 정보 (JSON)
-
-        페이로드 예시:
-            {
-                "clientid": "robot_01",
-                "username": "user",
-                "ipaddress": "192.168.1.100",
-                "clean_session": true,
-                "protocol": 4
-            }
-        """
+        """클라이언트 연결 시 파싱된 정보를 Redis에 저장"""
         try:
-            # 페이로드 파싱 시도
-            try:
-                client_info = json.loads(payload)
-                client_id = client_info.get("clientid", "Unknown")
-                ip_address = client_info.get("ipaddress", "Unknown")
-                print(f"[Connection] ✅ Client connected - ID: {client_id}, IP: {ip_address}")
-            except json.JSONDecodeError:
-                # JSON이 아닌 경우 원본 문자열 출력
-                print(f"[Connection] ✅ Client connected - Raw: {payload}")
+            client_info = json.loads(payload)
+        except json.JSONDecodeError:
+            print(f"[Connection] Connected - payload 파싱 실패: {payload}")
+            return
 
-            # 필요한 경우 추가 로직 구현
-            # 예: Redis에 연결 정보 저장, 알림 전송 등
-            # redis_service.hset(f"mqtt:clients:{client_id}", "status", "connected")
+        client_id = client_info.get("clientid", "")
+        ip_address = client_info.get("ipaddress", "Unknown")
 
-        except Exception as e:
-            print(f"[Connection] ❌ Error handling client_connected: {e}")
+        parsed = self._parse_client_id(client_id)
+        if not parsed:
+            print(f"[Connection] Connected - clientid 형식 불가: {client_id}")
+            return
+
+        now = datetime.now().isoformat()
+        key = self._get_connection_key(parsed["device_name"], parsed["map_name"], parsed["device_id"])
+
+        # 연결 정보 저장
+        redis_service.hset(key, "status", "connected")
+        redis_service.hset(key, "connected_at", now)
+        redis_service.hset(key, "ip", ip_address)
+        redis_service.hset(key, "device_name", parsed["device_name"])
+        redis_service.hset(key, "device_id", parsed["device_id"])
+        redis_service.hset(key, "map_name", parsed["map_name"])
+        redis_service.hset(key, "uuid", parsed["uuid"])
+        # 이전 해제 정보 초기화
+        redis_service.hdel(key, "disconnected_at")
+        redis_service.hdel(key, "reason")
+
+        print(f"[Connection] ✅ Connected - {parsed['device_name']}({parsed['map_name']}:{parsed['device_id']}), IP: {ip_address}")
 
     def _handle_client_disconnected(self, payload: str) -> None:
-        """클라이언트 연결 종료 이벤트 처리
-
-        Args:
-            payload: 연결 해제된 클라이언트 정보 (JSON)
-
-        페이로드 예시:
-            {
-                "clientid": "robot_01",
-                "username": "user",
-                "reason": "normal"
-            }
-        """
+        """클라이언트 해제 시 Redis 키 삭제"""
         try:
-            # 페이로드 파싱 시도
-            try:
-                client_info = json.loads(payload)
-                client_id = client_info.get("clientid", "Unknown")
-                reason = client_info.get("reason", "Unknown")
-                print(f"[Connection] ❌ Client disconnected - ID: {client_id}, Reason: {reason}")
-            except json.JSONDecodeError:
-                # JSON이 아닌 경우 원본 문자열 출력
-                print(f"[Connection] ❌ Client disconnected - Raw: {payload}")
+            client_info = json.loads(payload)
+        except json.JSONDecodeError:
+            print(f"[Connection] Disconnected - payload 파싱 실패: {payload}")
+            return
 
-            # 필요한 경우 추가 로직 구현
-            # 예: Redis에서 연결 정보 삭제, 알림 전송, 재연결 시도 등
-            # redis_service.hdel(f"mqtt:clients:{client_id}", "status")
-            # redis_service.publish("mqtt:events", json.dumps({"event": "disconnect", "client": client_id}))
+        client_id = client_info.get("clientid", "")
+        reason = client_info.get("reason", "Unknown")
 
-        except Exception as e:
-            print(f"[Connection] ❌ Error handling client_disconnected: {e}")
+        parsed = self._parse_client_id(client_id)
+        if not parsed:
+            print(f"[Connection] Disconnected - clientid 형식 불가: {client_id}")
+            return
+
+        key = self._get_connection_key(parsed["device_name"], parsed["map_name"], parsed["device_id"])
+        redis_service.delete(key)
+
+        print(f"[Connection] ❌ Disconnected - {parsed['device_name']}({parsed['map_name']}:{parsed['device_id']}), Reason: {reason}")

@@ -184,10 +184,10 @@ class DailyStatsService:
         current_state_data = redis_service.hgetall(current_state_key)
 
         result = {
-            "working": 0.0,
-            "full_charge_idle": 0.0,
-            "charging": 0.0,
-            "idle": 0.0
+            "idle": 0.0,
+            "moving": 0.0,
+            "arrived": 0.0,
+            "charging": 0.0
         }
 
         # Redis에 저장된 누적 시간
