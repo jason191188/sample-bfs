@@ -98,9 +98,6 @@ class ConnectionHandler(MQTTHandler):
         redis_service.hset(key, "device_id", parsed["device_id"])
         redis_service.hset(key, "map_name", parsed["map_name"])
         redis_service.hset(key, "uuid", parsed["uuid"])
-        # 이전 해제 정보 초기화
-        redis_service.hdel(key, "disconnected_at")
-        redis_service.hdel(key, "reason")
 
         print(f"[Connection] ✅ Connected - {parsed['device_name']}({parsed['map_name']}:{parsed['device_id']}), IP: {ip_address}")
 
