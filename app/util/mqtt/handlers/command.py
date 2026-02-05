@@ -120,6 +120,10 @@ class CommandHandler(MQTTHandler):
         # Redis에 로봇 상태 저장 (도착 - DONE)
         robot_state_service.update_status(map_name, robot_id, RobotStatus.DONE, data.current_node)
 
+        # 도착 키를 별도로 저장하고 3분(180초) 후 만료
+        arrive_key = f"robot:arrive:{map_name}:{robot_id}"
+        redis_service.set(arrive_key, str(data.current_node), ex=180)
+
         # 해당 로봇이 점유한 모든 노드 해제
         released_count = release_robot_nodes(map_name, robot_id)
         print(f"[Arrive] Robot {robot_id} arrived at node {data.current_node}. Released {released_count} nodes.")

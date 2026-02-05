@@ -89,6 +89,12 @@ class RedisService:
             return True
         return False
 
+    def expire(self, key: str, seconds: int) -> bool:
+        if self.client:
+            self.client.expire(key, seconds)
+            return True
+        return False
+
     # Pub/Sub 기능
     def publish(self, channel: str, message: str) -> bool:
         """Redis 채널에 메시지 발행
