@@ -84,7 +84,7 @@ async def delete_robot_state(
 @router.post("/{map_name}/dummy")
 async def create_dummy_data(map_name: str = Depends(validate_map_name)):
     """더미 로봇 데이터 생성 (로봇 1대, 2번 노드 대기 중)"""
-    robot_id = "robot1"
+    robot_id = "1"
     now = datetime.now()
     today = date.today()
 
@@ -114,5 +114,37 @@ async def create_dummy_data(map_name: str = Depends(validate_map_name)):
         "message": f"Dummy data created for {robot_id} in {map_name}",
         "robot_id": robot_id,
         "state": "idle at node 2, battery 100%",
+        "daily_stats": "working:4h, charging:1h, full_charge_idle:2h, idle:1h"
+    }
+
+
+@router.post("/{map_name}/dummy/stats/{target_date}")
+async def create_dummy_daily_stats(
+    target_date: str,
+    map_name: str = Depends(validate_map_name)
+):
+    """특정 날짜의 가동률 더미데이터 생성
+
+    Args:
+        target_date: 날짜 (YYYY-MM-DD 형식)
+        map_name: 맵 이름
+    """
+    try:
+        parsed_date = date.fromisoformat(target_date)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+
+    robot_id = "1"
+    stats_key = f"robot:daily_stats:{map_name}:{robot_id}:{parsed_date.isoformat()}"
+
+    redis_service.hset(stats_key, "working", "14400")        # 4시간
+    redis_service.hset(stats_key, "charging", "3600")         # 1시간
+    redis_service.hset(stats_key, "full_charge_idle", "7200")  # 2시간
+    redis_service.hset(stats_key, "idle", "3600")             # 1시간
+    redis_service.expire(stats_key, 30 * 24 * 60 * 60)
+
+    return {
+        "message": f"Dummy daily stats created for {robot_id} in {map_name}",
+        "date": parsed_date.isoformat(),
         "daily_stats": "working:4h, charging:1h, full_charge_idle:2h, idle:1h"
     }

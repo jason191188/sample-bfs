@@ -7,8 +7,9 @@ from app.util.mqtt.handlers.models import (
     BatteryPayload,
     ArrivePayload,
     RemovePathPayload,
+    NextPayload,
 )
-from app.util.redis.init_data import release_node, release_robot_nodes
+from app.util.redis.init_data import release_node, release_robot_nodes, get_node
 from app.util.redis.client import redis_service
 from app.domain.path.path_service import path_calculation_service
 from app.domain.robot.robot_state_service import robot_state_service
@@ -45,6 +46,8 @@ class CommandHandler(MQTTHandler):
             self._handle_remove(map_name, robot_id, payload)
         elif command == "robot_error":
             self._handle_error(map_name, robot_id, payload)
+        elif command == "next":
+            self._handle_next(map_name, robot_id, payload)
 
     def _determine_destination(self, current_node: int, final_node: int) -> tuple[int, bool]:
         """목적지 결정 (복귀 로직)
@@ -149,6 +152,53 @@ class CommandHandler(MQTTHandler):
             "payload": json.loads(payload)
         })
         redis_service.publish("smartfarm::robot", message)
+
+    def _handle_next(self, map_name: str, robot_id: str, payload: str) -> None:
+        """한 칸 전진 처리
+
+        sub_position 있는 경우: 서브노드 단위 이동 (0~3: 같은 노드, 4: 다음 노드)
+        sub_position 없는 경우: 노드 단위 이동 (다음 노드로 이동)
+        """
+        data = NextPayload(**json.loads(payload))
+
+        if data.sub_position is not None:
+            # 서브포지션 포함 모드
+            if data.sub_position < 4:
+                next_node = data.current_node
+                next_sub = data.sub_position + 1
+            else:
+                node = get_node(map_name, data.current_node)
+                if not node:
+                    print(f"[Next] Robot {robot_id}: Node {data.current_node} not found")
+                    return
+                next_node_id = node.get(data.direction, 0)
+                if next_node_id == 0:
+                    print(f"[Next] Robot {robot_id}: No node in direction '{data.direction}' from node {data.current_node}")
+                    return
+                next_node = next_node_id
+                next_sub = 0
+
+            path_str = f"{next_node}/{data.direction}~{next_node}-{next_sub}!{data.current_node}-{data.sub_position},{data.direction}/"
+            log_msg = f"{data.current_node}-{data.sub_position} → {next_node}-{next_sub}"
+        else:
+            # 노드 단위 모드
+            node = get_node(map_name, data.current_node)
+            if not node:
+                print(f"[Next] Robot {robot_id}: Node {data.current_node} not found")
+                return
+            next_node_id = node.get(data.direction, 0)
+            if next_node_id == 0:
+                print(f"[Next] Robot {robot_id}: No node in direction '{data.direction}' from node {data.current_node}")
+                return
+            next_node = next_node_id
+
+            path_str = f"{next_node}/{data.direction}~{next_node}!{data.current_node},{data.direction}/"
+            log_msg = f"{data.current_node} → {next_node}"
+
+        response_topic = f"{map_name}/{robot_id}/server/path_plan"
+        response_payload = json.dumps({"path": path_str})
+        mqtt_service.publish(response_topic, response_payload)
+        print(f"[Next] Robot {robot_id}: {log_msg}")
 
     def _handle_error(self, map_name: str, robot_id: str, payload: str) -> None:
         """로봇 에러 처리 - 상태를 ERROR로 변경하고 Redis로 에러 정보 publish"""

@@ -14,11 +14,6 @@ from app.util.redis.init_data import init_node_data, init_testbed_node_data
 from app.util.redis.handlers.command import redis_command_handler
 from app.util.scheduler import daily_reset_scheduler
 
-""" TODO: 
-        - 도커파일 및 도커 컴포즈 설정
-        - 
-
-"""
 
 def register_mqtt_handlers():
     """MQTT 핸들러 등록"""

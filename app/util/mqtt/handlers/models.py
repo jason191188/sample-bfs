@@ -1,3 +1,4 @@
+from typing import Optional
 from pydantic import BaseModel
 
 
@@ -19,3 +20,9 @@ class ArrivePayload(BaseModel):
 
 class RemovePathPayload(BaseModel):
     current_node: int  # 해제할 노드
+
+
+class NextPayload(BaseModel):
+    current_node: int                    # 현재 노드
+    sub_position: Optional[int] = None   # 서브 위치 (0-4), 없으면 노드 단위
+    direction: str                       # 진행 방향 (l, r, u, d)
