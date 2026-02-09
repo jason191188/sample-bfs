@@ -24,6 +24,12 @@ class RobotStateService:
         """
         return f"robot:state:{map_name}:{robot_id}"
 
+    def _set_identity_fields(self, key: str, map_name: str, robot_id: str) -> None:
+        """mapName, trackNo, robotId 필드 저장"""
+        redis_service.hset(key, "map_name", map_name)
+        redis_service.hset(key, "track_no", "1")
+        redis_service.hset(key, "robot_id", robot_id)
+
     def _publish_state_change(self, map_name: str, robot_id: str) -> None:
         """로봇 상태 변경을 Redis Pub/Sub으로 전송
 
@@ -68,8 +74,8 @@ class RobotStateService:
         self,
         map_name: str,
         robot_id: str,
-        current_node: int,
-        final_node: int = None,
+        current_node: str,
+        final_node: str = None,
         is_return: bool = False
     ) -> bool:
         """로봇 위치 정보 업데이트
@@ -86,13 +92,14 @@ class RobotStateService:
         """
         key = self._get_robot_key(map_name, robot_id)
 
-        redis_service.hset(key, "current_node", str(current_node))
+        self._set_identity_fields(key, map_name, robot_id)
+        redis_service.hset(key, "current_node", current_node)
         redis_service.hset(key, "updated_at", datetime.now().isoformat())
 
         if final_node is not None:
-            redis_service.hset(key, "final_node", str(final_node))
+            redis_service.hset(key, "final_node", final_node)
 
-        # current_node 변경에 따른 status 자동 업데이트
+        # currentNode 변경에 따른 status 자동 업데이트
         if current_node == 2:
             # 2번 노드일 때: 배터리와 충전 상태를 확인하여 status 결정
             state = self.get_robot_state(map_name, robot_id)
@@ -138,6 +145,7 @@ class RobotStateService:
         """
         key = self._get_robot_key(map_name, robot_id)
 
+        self._set_identity_fields(key, map_name, robot_id)
         redis_service.hset(key, "battery_state", str(battery_state))
         redis_service.hset(key, "charging_state", str(charging_state))
         redis_service.hset(key, "updated_at", datetime.now().isoformat())
@@ -164,7 +172,7 @@ class RobotStateService:
         map_name: str,
         robot_id: str,
         status: Union[RobotStatus, str],
-        node: int = None
+        node: str = None
     ) -> bool:
         """로봇 상태 업데이트
 
@@ -172,13 +180,14 @@ class RobotStateService:
             map_name: 맵 이름
             robot_id: 로봇 ID
             status: 상태 (RobotStatus enum 또는 문자열)
-            node: 관련 노드 (Optional)
+            node: 관련 노드 (Optional, "2" 또는 "2-3" 형태)
 
         Returns:
             성공 여부
         """
         key = self._get_robot_key(map_name, robot_id)
 
+        self._set_identity_fields(key, map_name, robot_id)
         # RobotStatus enum이면 value 추출
         status_value = status.value if isinstance(status, RobotStatus) else status
         redis_service.hset(key, "status", status_value)
@@ -211,11 +220,13 @@ class RobotStateService:
         if not state:
             return None
 
-        # 숫자 필드 변환
+        # 숫자 필드 변환 (서브노드 형식 "2-4"는 문자열 유지)
         if "current_node" in state:
-            state["current_node"] = int(state["current_node"])
+            if "-" not in state["current_node"]:
+                state["current_node"] = int(state["current_node"])
         if "final_node" in state:
-            state["final_node"] = int(state["final_node"])
+            if "-" not in state["final_node"]:
+                state["final_node"] = int(state["final_node"])
         if "battery_state" in state:
             state["battery_state"] = float(state["battery_state"])
         if "charging_state" in state:
@@ -245,11 +256,13 @@ class RobotStateService:
             state = redis_service.hgetall(key)
 
             if state:
-                # 숫자 필드 변환
+                # 숫자 필드 변환 (서브노드 형식 "2-4"는 문자열 유지)
                 if "current_node" in state:
-                    state["current_node"] = int(state["current_node"])
+                    if "-" not in state["current_node"]:
+                        state["current_node"] = int(state["current_node"])
                 if "final_node" in state:
-                    state["final_node"] = int(state["final_node"])
+                    if "-" not in state["final_node"]:
+                        state["final_node"] = int(state["final_node"])
                 if "battery_state" in state:
                     state["battery_state"] = float(state["battery_state"])
                 if "charging_state" in state:

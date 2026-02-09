@@ -10,7 +10,7 @@ class PathCalculationService:
     """경로 계산 및 MQTT 응답 전송 서비스"""
 
     def calculate_and_send_path(
-        self, map_name: str, robot_id: str, start_node: int, end_node: int, is_return: bool = False, start_display: str = None
+        self, map_name: str, robot_id: str, start_node: int, end_node: int, is_return: bool = False, start_display: str = None, final_display: str = None
     ) -> None:
         """경로 계산 및 MQTT 응답 전송
 
@@ -21,15 +21,16 @@ class PathCalculationService:
             end_node: 목적지 노드
             is_return: 복귀 경로 여부
             start_display: 시작 노드 표시 문자열 ("2-1" 등)
+            final_display: 목적지 표시 문자열 ("4-1" 등)
         """
         if is_return:
-            path_str, actual_end = self._calculate_return_path(map_name, start_node, end_node, robot_id, start_display)
+            path_str, actual_end = self._calculate_return_path(map_name, start_node, end_node, robot_id, start_display, final_display)
         else:
-            path_str, actual_end = self._calculate_forward_path(map_name, start_node, end_node, robot_id, start_display)
+            path_str, actual_end = self._calculate_forward_path(map_name, start_node, end_node, robot_id, start_display, final_display)
 
         self._send_path_response(map_name, robot_id, start_node, end_node, path_str, actual_end, is_return)
 
-    def _calculate_forward_path(self, map_name: str, start_node: int, end_node: int, robot_id: str, start_display: str = None) -> tuple[str | None, int]:
+    def _calculate_forward_path(self, map_name: str, start_node: int, end_node: int, robot_id: str, start_display: str = None, final_display: str = None) -> tuple[str | None, int]:
         """전진 경로 계산
 
         Args:
@@ -38,6 +39,7 @@ class PathCalculationService:
             end_node: 목적지 노드
             robot_id: 로봇 ID
             start_display: 시작 노드 표시 문자열 ("2-1" 등)
+            final_display: 목적지 표시 문자열 ("4-1" 등)
 
         Returns:
             (경로 문자열, 실제 도착 노드) 또는 (None, end_node) if no path
@@ -57,11 +59,11 @@ class PathCalculationService:
 
         # 4. 경로 문자열 생성
         actual_end = path[-1]
-        path_str = format_path(actual_end, start_node, path, directions, end_node, start_display)
+        path_str = format_path(actual_end, start_node, path, directions, end_node, start_display, final_display)
 
         return path_str, actual_end
 
-    def _calculate_return_path(self, map_name: str, start_node: int, end_node: int, robot_id: str, start_display: str = None) -> tuple[str | None, int]:
+    def _calculate_return_path(self, map_name: str, start_node: int, end_node: int, robot_id: str, start_display: str = None, final_display: str = None) -> tuple[str | None, int]:
         """복귀 경로 계산 (현재는 전진 경로와 동일한 로직)
 
         Args:
@@ -70,12 +72,13 @@ class PathCalculationService:
             end_node: 복귀 목적지 노드 (1 또는 2)
             robot_id: 로봇 ID
             start_display: 시작 노드 표시 문자열 ("2-1" 등)
+            final_display: 목적지 표시 문자열 ("4-1" 등)
 
         Returns:
             (경로 문자열, 실제 도착 노드) 또는 (None, end_node) if no path
         """
         # 복귀 경로도 동일한 BFS + cut_path 로직 사용
-        return self._calculate_forward_path(map_name, start_node, end_node, robot_id, start_display)
+        return self._calculate_forward_path(map_name, start_node, end_node, robot_id, start_display, final_display)
 
     def _send_path_response(
         self,

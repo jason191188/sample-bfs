@@ -90,8 +90,11 @@ async def create_dummy_data(map_name: str = Depends(validate_map_name)):
 
     # 1. 로봇 상태 데이터
     state_key = f"robot:state:{map_name}:{robot_id}"
-    redis_service.hset(state_key, "current_node", "2")
-    redis_service.hset(state_key, "final_node", "2")
+    redis_service.hset(state_key, "map_name", map_name)
+    redis_service.hset(state_key, "track_no", "1")
+    redis_service.hset(state_key, "robot_id", robot_id)
+    redis_service.hset(state_key, "current_node", "2-0")
+    redis_service.hset(state_key, "final_node", "2-0")
     redis_service.hset(state_key, "battery_state", "100")
     redis_service.hset(state_key, "charging_state", "0")
     redis_service.hset(state_key, "status", "idle")
