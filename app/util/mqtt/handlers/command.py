@@ -11,6 +11,7 @@ from app.util.mqtt.handlers.models import (
 )
 from app.util.redis.init_data import release_node, release_robot_nodes, get_node
 from app.util.redis.client import redis_service
+from app.domain.path.service import bfs
 from app.domain.path.path_service import path_calculation_service
 from app.domain.robot.robot_state_service import robot_state_service
 from app.domain.robot.robot_status import RobotStatus
@@ -49,6 +50,21 @@ class CommandHandler(MQTTHandler):
         elif command == "next":
             self._handle_next(map_name, robot_id, payload)
 
+    def _parse_node(self, node_str: str) -> tuple[int, int | None]:
+        """노드 문자열을 파싱하여 (노드ID, 서브포지션) 반환
+
+        Args:
+            node_str: "2" 또는 "2-1" 형태의 노드 문자열
+
+        Returns:
+            (node_id, sub_position) - 서브포지션이 없으면 None
+        """
+        if "-" in node_str:
+            parts = node_str.split("-")
+            return int(parts[0]), int(parts[1])
+        else:
+            return int(node_str), None
+
     def _determine_destination(self, current_node: int, final_node: int) -> tuple[int, bool]:
         """목적지 결정 (복귀 로직)
 
@@ -70,19 +86,90 @@ class CommandHandler(MQTTHandler):
         """경로 계산 요청 처리 - BFS로 경로 계산 후 MQTT로 응답"""
         data = PathPayload(**json.loads(payload))
 
+        # 서브노드 요청 감지 (final_node에 "-"가 포함된 경우: "2-1" 형태)
+        if "-" in data.final_node:
+            self._handle_sub_node_path(map_name, robot_id, data)
+            return
+
+        # current_node 파싱 (서브포지션은 일반 경로에서는 무시)
+        current_node_id, _ = self._parse_node(data.current_node)
+
+        # 일반 경로 요청
+        final_node = int(data.final_node)
+
         # 목적지 결정 (복귀 로직 처리)
-        destination, is_return = self._determine_destination(data.current_node, data.final_node)
+        destination, is_return = self._determine_destination(current_node_id, final_node)
 
         if is_return:
-            print(f"[Path] Robot {robot_id}: Return signal detected (node {data.current_node} → {destination})")
+            print(f"[Path] Robot {robot_id}: Return signal detected (node {current_node_id} → {destination})")
         else:
-            print(f"[Path] Robot {robot_id}: Path request (node {data.current_node} → {destination})")
+            print(f"[Path] Robot {robot_id}: Path request (node {current_node_id} → {destination})")
 
         # Redis에 로봇 위치 정보 저장 (is_return 플래그 전달)
-        robot_state_service.update_position(map_name, robot_id, data.current_node, destination, is_return)
+        robot_state_service.update_position(map_name, robot_id, current_node_id, destination, is_return)
 
-        # PathCalculationService를 사용하여 경로 계산 및 응답
-        path_calculation_service.calculate_and_send_path(map_name, robot_id, data.current_node, destination, is_return)
+        # PathCalculationService를 사용하여 경로 계산 및 응답 (원본 current_node 문자열 전달)
+        start_display = data.current_node if "-" in data.current_node else None
+        path_calculation_service.calculate_and_send_path(map_name, robot_id, current_node_id, destination, is_return, start_display)
+
+    def _handle_sub_node_path(self, map_name: str, robot_id: str, data) -> None:
+        """서브노드 경로 요청 처리 (final_node가 "2-1" 형태)"""
+        parts = data.final_node.split("-")
+        target_node = int(parts[0])
+        target_sub = int(parts[1])
+        current_node, current_node_sub = self._parse_node(data.current_node)
+
+        # 방향 결정
+        if current_node != target_node:
+            # 다른 노드로 이동: 현재 노드에서 목표 노드 방향 찾기
+            node_data = get_node(map_name, current_node)
+            if not node_data:
+                print(f"[Next] Robot {robot_id}: Node {current_node} not found")
+                return
+            direction = None
+            for d in ["l", "r", "u", "d"]:
+                if node_data.get(d) == target_node:
+                    direction = d
+                    break
+            if not direction:
+                print(f"[Next] Robot {robot_id}: Node {target_node} not adjacent to {current_node}")
+                return
+        else:
+            # 같은 노드 내 이동: 저장된 최종 목적지로 BFS하여 방향 결정
+            state = robot_state_service.get_robot_state(map_name, robot_id)
+            stored_final = state.get("final_node") if state else None
+
+            if stored_final and stored_final != current_node:
+                _, directions = bfs(map_name, current_node, stored_final)
+                direction = directions[0] if directions else None
+            else:
+                direction = None
+
+            if not direction:
+                # Fallback: 노드의 첫 번째 유효 방향
+                node_data = get_node(map_name, current_node)
+                if node_data:
+                    for d in ["l", "r", "u", "d"]:
+                        if node_data.get(d, 0) != 0:
+                            direction = d
+                            break
+                if not direction:
+                    direction = "l"
+
+        # 현재 서브포지션 결정
+        if current_node_sub is not None:
+            current_sub = current_node_sub
+        elif current_node == target_node:
+            current_sub = target_sub - 1  # 같은 노드: 한 칸 이전
+        else:
+            current_sub = 4  # 다른 노드: 이전 노드 끝
+
+        # 응답 생성
+        path_str = f"{target_node}/{direction}~{target_node}-{target_sub}!{current_node}-{current_sub},{direction}/"
+        response_topic = f"{map_name}/{robot_id}/server/path_plan"
+        response_payload = json.dumps({"path": path_str})
+        mqtt_service.publish(response_topic, response_payload)
+        print(f"[Next] Robot {robot_id}: {current_node}-{current_sub} → {target_node}-{target_sub} (direction: {direction})")
 
     def _handle_battery(self, map_name: str, robot_id: str, payload: str) -> None:
         """배터리 상태 처리 - Redis에 저장"""
@@ -120,12 +207,15 @@ class CommandHandler(MQTTHandler):
         """로봇 도착 처리 - 해당 로봇이 점유한 모든 노드 해제"""
         data = ArrivePayload(**json.loads(payload))
 
+        # current_node 파싱 (노드 ID만 사용)
+        current_node_id, _ = self._parse_node(data.current_node)
+
         # Redis에 로봇 상태 저장 (도착 - DONE)
-        robot_state_service.update_status(map_name, robot_id, RobotStatus.DONE, data.current_node)
+        robot_state_service.update_status(map_name, robot_id, RobotStatus.DONE, current_node_id)
 
         # 도착 키를 별도로 저장하고 3분(180초) 후 만료
         arrive_key = f"robot:arrive:{map_name}:{robot_id}"
-        redis_service.set(arrive_key, str(data.current_node), ex=180)
+        redis_service.set(arrive_key, str(current_node_id), ex=180)
 
         # 해당 로봇이 점유한 모든 노드 해제
         released_count = release_robot_nodes(map_name, robot_id)
@@ -139,12 +229,16 @@ class CommandHandler(MQTTHandler):
     def _handle_remove(self, map_name: str, robot_id: str, payload: str) -> None:
         """경로 노드 해제 - 특정 노드의 점유 해제"""
         data = RemovePathPayload(**json.loads(payload))
+
+        # current_node 파싱 (노드 ID만 사용)
+        current_node_id, _ = self._parse_node(data.current_node)
+
         # 해당 노드가 이 로봇이 점유한 노드인지 확인 후 해제
-        success = release_node(map_name, data.current_node, robot_id)
+        success = release_node(map_name, current_node_id, robot_id)
         if success:
-            print(f"[Remove] Robot {robot_id} released node {data.current_node}.")
+            print(f"[Remove] Robot {robot_id} released node {current_node_id}.")
         else:
-            print(f"[Remove] Failed to release node {data.current_node} for robot {robot_id}.")
+            print(f"[Remove] Failed to release node {current_node_id} for robot {robot_id}.")
 
         # Redis로 remove 정보 publish
         message = json.dumps({
@@ -161,39 +255,42 @@ class CommandHandler(MQTTHandler):
         """
         data = NextPayload(**json.loads(payload))
 
+        # current_node 파싱
+        current_node_id, current_node_sub = self._parse_node(data.current_node)
+
         if data.sub_position is not None:
             # 서브포지션 포함 모드
             if data.sub_position < 4:
-                next_node = data.current_node
+                next_node = current_node_id
                 next_sub = data.sub_position + 1
             else:
-                node = get_node(map_name, data.current_node)
+                node = get_node(map_name, current_node_id)
                 if not node:
-                    print(f"[Next] Robot {robot_id}: Node {data.current_node} not found")
+                    print(f"[Next] Robot {robot_id}: Node {current_node_id} not found")
                     return
                 next_node_id = node.get(data.direction, 0)
                 if next_node_id == 0:
-                    print(f"[Next] Robot {robot_id}: No node in direction '{data.direction}' from node {data.current_node}")
+                    print(f"[Next] Robot {robot_id}: No node in direction '{data.direction}' from node {current_node_id}")
                     return
                 next_node = next_node_id
                 next_sub = 0
 
-            path_str = f"{next_node}/{data.direction}~{next_node}-{next_sub}!{data.current_node}-{data.sub_position},{data.direction}/"
-            log_msg = f"{data.current_node}-{data.sub_position} → {next_node}-{next_sub}"
+            path_str = f"{next_node}/{data.direction}~{next_node}-{next_sub}!{current_node_id}-{data.sub_position},{data.direction}/"
+            log_msg = f"{current_node_id}-{data.sub_position} → {next_node}-{next_sub}"
         else:
             # 노드 단위 모드
-            node = get_node(map_name, data.current_node)
+            node = get_node(map_name, current_node_id)
             if not node:
-                print(f"[Next] Robot {robot_id}: Node {data.current_node} not found")
+                print(f"[Next] Robot {robot_id}: Node {current_node_id} not found")
                 return
             next_node_id = node.get(data.direction, 0)
             if next_node_id == 0:
-                print(f"[Next] Robot {robot_id}: No node in direction '{data.direction}' from node {data.current_node}")
+                print(f"[Next] Robot {robot_id}: No node in direction '{data.direction}' from node {current_node_id}")
                 return
             next_node = next_node_id
 
-            path_str = f"{next_node}/{data.direction}~{next_node}!{data.current_node},{data.direction}/"
-            log_msg = f"{data.current_node} → {next_node}"
+            path_str = f"{next_node}/{data.direction}~{next_node}!{current_node_id},{data.direction}/"
+            log_msg = f"{current_node_id} → {next_node}"
 
         response_topic = f"{map_name}/{robot_id}/server/path_plan"
         response_payload = json.dumps({"path": path_str})
