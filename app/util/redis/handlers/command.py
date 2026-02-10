@@ -46,11 +46,11 @@ class RedisCommandHandler:
         # Redis에서 로봇 상태 조회
         robot_state = robot_state_service.get_robot_state(map_name, robot_id)
 
-        if not robot_state or "currentNode" not in robot_state:
-            print(f"[Redis] Robot {robot_id} state not found or missing currentNode")
+        if not robot_state or "current_node" not in robot_state:
+            print(f"[Redis] Robot {robot_id} state not found or missing current_node")
             return
 
-        current_node = robot_state["currentNode"]
+        current_node = robot_state["current_node"]
 
         # 현재 노드 정보에서 왼쪽(l) 방향의 다음 노드 조회
         node_data = get_node(map_name, current_node)
@@ -81,11 +81,11 @@ class RedisCommandHandler:
         """
         robot_state = robot_state_service.get_robot_state(map_name, robot_id)
 
-        if not robot_state or "currentNode" not in robot_state:
+        if not robot_state or "current_node" not in robot_state:
             print(f"[Redis] Robot {robot_id} state not found")
             return
 
-        current_node = robot_state["currentNode"]
+        current_node = robot_state["current_node"]
         current_node_str = str(current_node)
 
         # 현재 노드 파싱 ("2-4" → node_id=2, sub=4 / "2" → node_id=2, sub=0)
@@ -97,7 +97,7 @@ class RedisCommandHandler:
             node_id = int(current_node_str)
             sub = 0
 
-        final_node = robot_state.get("finalNode")
+        final_node = robot_state.get("final_node")
 
         # 다음 서브노드 계산
         if sub < 4:
@@ -152,11 +152,11 @@ class RedisCommandHandler:
         # Redis에서 로봇 상태 조회
         robot_state = robot_state_service.get_robot_state(map_name, robot_id)
 
-        if not robot_state or "currentNode" not in robot_state:
-            print(f"[Redis] Robot {robot_id} state not found or missing currentNode")
+        if not robot_state or "current_node" not in robot_state:
+            print(f"[Redis] Robot {robot_id} state not found or missing current_node")
             return
 
-        current_node = robot_state["currentNode"]
+        current_node = robot_state["current_node"]
 
         # 복귀 목적지 결정 ("0"을 보내면 로봇이 복귀 로직 실행)
         final_node = "0"

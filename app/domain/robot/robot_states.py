@@ -13,29 +13,38 @@ class RobotOperationState(Enum):
     RobotStatus가 저장된 후, from_robot_status()로 매핑하여 사용합니다.
     """
 
-    IDLE = "idle"          # 대기 중 (WAITING)
-    MOVING = "moving"      # 이동 중 (WORKING, RETURN)
-    ARRIVED = "arrived"    # 도착 완료 (DONE)
-    CHARGING = "charging"  # 충전 중 (CHARGING)
+    IDLE = "idle"                        # 대기 중, 배터리 100 미만 (WAITING/DONE + battery < 100)
+    WORKING = "working"                  # 작업 중 (WORKING, RETURN)
+    FULL_CHARGE_IDLE = "full_charge_idle"  # 완충 대기 중 (WAITING/DONE + battery >= 100)
+    CHARGING = "charging"                # 충전 중 (CHARGING)
 
     @staticmethod
-    def from_robot_status(robot_status: "RobotStatus") -> "RobotOperationState | None":
-        """RobotStatus에서 가동률 상태로 매핑
+    def from_robot_status(robot_status: "RobotStatus", battery_state: float = 0) -> "RobotOperationState | None":
+        """RobotStatus와 배터리 상태에서 가동률 상태로 매핑
 
         Args:
             robot_status: Redis 저장용 로봇 상태
+            battery_state: 배터리 잔량 (%)
 
         Returns:
             RobotOperationState (ERROR 시 None 반환 → 가동률 누적 안함)
         """
         from app.domain.robot.robot_status import RobotStatus
 
-        mapping = {
-            RobotStatus.WORKING:  RobotOperationState.MOVING,
-            RobotStatus.RETURN:   RobotOperationState.MOVING,
-            RobotStatus.DONE:     RobotOperationState.ARRIVED,
-            RobotStatus.CHARGING: RobotOperationState.CHARGING,
-            RobotStatus.WAITING:  RobotOperationState.IDLE,
-        }
+        # 작업 중
+        if robot_status in (RobotStatus.WORKING, RobotStatus.RETURN):
+            return RobotOperationState.WORKING
+
+        # 충전 중
+        if robot_status == RobotStatus.CHARGING:
+            return RobotOperationState.CHARGING
+
+        # 대기/도착 상태 → 배터리 레벨로 구분
+        if robot_status in (RobotStatus.WAITING, RobotStatus.DONE):
+            if battery_state >= 100:
+                return RobotOperationState.FULL_CHARGE_IDLE
+            else:
+                return RobotOperationState.IDLE
+
         # ERROR는 가동률 누적하지 않음
-        return mapping.get(robot_status)
+        return None

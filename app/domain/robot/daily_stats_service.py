@@ -185,8 +185,8 @@ class DailyStatsService:
 
         result = {
             "idle": 0.0,
-            "moving": 0.0,
-            "arrived": 0.0,
+            "working": 0.0,
+            "full_charge_idle": 0.0,
             "charging": 0.0
         }
 

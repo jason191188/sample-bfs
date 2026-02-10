@@ -12,6 +12,23 @@ from app.domain.robot.daily_stats_service import daily_stats_service
 class RobotStateService:
     """로봇 상태를 Redis Hash에 저장하는 서비스"""
 
+    def _parse_node_id(self, node_value) -> int:
+        """노드 값에서 노드 ID 추출 (서브노드 무시)
+
+        Args:
+            node_value: int, str("2"), 또는 str("2-1") 형태
+
+        Returns:
+            노드 ID (int)
+        """
+        if isinstance(node_value, int):
+            return node_value
+        if isinstance(node_value, str):
+            if "-" in node_value:
+                return int(node_value.split("-")[0])
+            return int(node_value)
+        return 0
+
     def _get_robot_key(self, map_name: str, robot_id: str) -> str:
         """로봇 상태 저장 키 생성
 
@@ -62,13 +79,19 @@ class RobotStateService:
             return
 
         robot_status = RobotStatus(state["status"])
-        operation_state = RobotOperationState.from_robot_status(robot_status)
+        battery_state = state.get("battery_state", 0)
+        operation_state = RobotOperationState.from_robot_status(robot_status, battery_state)
 
         # ERROR 상태는 가동률 누적하지 않음
         if operation_state is None:
             return
 
-        daily_stats_service.start_state(map_name, robot_id, operation_state)
+        # 현재 진행 중인 상태 확인
+        current_state_info = daily_stats_service.get_current_state(map_name, robot_id)
+
+        # 상태가 변경되었을 때만 start_state 호출
+        if not current_state_info or current_state_info["state"] != operation_state.value:
+            daily_stats_service.start_state(map_name, robot_id, operation_state)
 
     def update_position(
         self,
@@ -83,12 +106,18 @@ class RobotStateService:
         Args:
             map_name: 맵 이름
             robot_id: 로봇 ID
-            current_node: 현재 노드
-            final_node: 목적지 노드 (Optional)
-            is_return: 복귀 중인지 여부 (Optional)
+            current_node: 현재 노드 ("2" 또는 "1-0" 형태)
+            final_node: 목적지 노드 (Optional, "1-0" 형태)
+            is_return: (Deprecated) 사용 안 함, final_node로 판단
 
         Returns:
             성공 여부
+
+        Note:
+            - current_node가 "1-0"이면 charging_state에 따라 CHARGING/WAITING 설정
+            - current_node가 "1-0"이 아니면 final_node에 따라 RETURN/WORKING 설정
+              - final_node가 "1-0"이면 RETURN
+              - final_node가 "1-0"이 아니면 WORKING
         """
         key = self._get_robot_key(map_name, robot_id)
 
@@ -100,25 +129,33 @@ class RobotStateService:
             redis_service.hset(key, "final_node", final_node)
 
         # currentNode 변경에 따른 status 자동 업데이트
-        if current_node == 2:
-            # 2번 노드일 때: 배터리와 충전 상태를 확인하여 status 결정
+        if current_node == "1-0":
+            # 1-0 노드(충전소)일 때: 충전 상태를 확인하여 status 결정
             state = self.get_robot_state(map_name, robot_id)
             if state:
-                battery = state.get("battery_state", 100)
                 charging = state.get("charging_state", 0)
 
-                # 배터리가 100% 미만이고 충전 중이면 CHARGING
-                if battery < 100 and charging == 1:
+                # 충전 중이면 CHARGING
+                if charging == 1:
                     redis_service.hset(key, "status", RobotStatus.CHARGING.value)
                 else:
                     # 그 외에는 WAITING
+                    print(f"[RobotStateService] Robot {robot_id} at 1-0: Not charging, setting status to WAITING if-else")
                     redis_service.hset(key, "status", RobotStatus.WAITING.value)
             else:
                 # 상태 정보가 없으면 기본값 WAITING
+                print(f"[RobotStateService] Robot {robot_id} at 1-0: Not charging, setting status to WAITING else-else")
                 redis_service.hset(key, "status", RobotStatus.WAITING.value)
         else:
-            # 복귀 중이면 RETURN, 아니면 WORKING
-            if is_return:
+            # 1-0이 아닌 노드: final_node가 1-0이면 RETURN, 아니면 WORKING
+            # final_node가 전달되지 않았으면 Redis에서 조회
+            target_node = final_node
+            if target_node is None:
+                state = self.get_robot_state(map_name, robot_id)
+                if state:
+                    target_node = state.get("final_node")
+
+            if target_node == "1-0":
                 redis_service.hset(key, "status", RobotStatus.RETURN.value)
             else:
                 redis_service.hset(key, "status", RobotStatus.WORKING.value)
@@ -150,13 +187,14 @@ class RobotStateService:
         redis_service.hset(key, "charging_state", str(charging_state))
         redis_service.hset(key, "updated_at", datetime.now().isoformat())
 
-        # 배터리/충전 상태 변경 시 status도 업데이트 (현재 노드가 2번인 경우에만)
+        # 배터리/충전 상태 변경 시 status도 업데이트 (현재 노드가 1-0인 경우에만)
         state = self.get_robot_state(map_name, robot_id)
-        if state and state.get("current_node") == 2:
-            # 2번 노드에서 배터리/충전 상태 변경 시 status 재계산
-            if battery_state < 100 and charging_state == 1:
+        if state and state.get("current_node") == "1-0":
+            # 1-0 노드에서 배터리/충전 상태 변경 시 status 재계산
+            if charging_state == 1:
                 redis_service.hset(key, "status", RobotStatus.CHARGING.value)
             else:
+                print(f"[RobotStateService] Robot {robot_id} at 1-0: Not charging, setting status to WAITING")
                 redis_service.hset(key, "status", RobotStatus.WAITING.value)
 
         # RobotStatus → 가동률 상태 매핑 및 통계 업데이트

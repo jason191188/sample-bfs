@@ -241,8 +241,11 @@ class CommandHandler(MQTTHandler):
         # current_node 파싱 (노드 ID만 사용)
         current_node_id, _ = self._parse_node(data.current_node)
 
-        # Redis에 로봇 상태 저장 (도착 - DONE, 원본 문자열 유지)
-        robot_state_service.update_status(map_name, robot_id, RobotStatus.DONE, data.current_node)
+        # Redis에 current_node 업데이트 (도착한 노드로 위치 변경)
+        robot_state_service.update_position(map_name, robot_id, data.current_node)
+
+        # TODO: DONE 상태는 Redis 채널로 받아서 처리 (추후 구현)
+        # robot_state_service.update_status(map_name, robot_id, RobotStatus.DONE, data.current_node)
 
         # 도착 키를 별도로 저장하고 3분(180초) 후 만료
         arrive_key = f"robot:arrive:{map_name}:{robot_id}"
