@@ -130,10 +130,6 @@ class RedisCommandHandler:
 
             next_sub_node = f"{next_node_id}-0"
 
-        # current_node 업데이트
-        robot_key = f"robot:state:{map_name}:{robot_id}"
-        redis_service.hset(robot_key, "current_node", next_sub_node)
-
         print(f"[Redis/Next] Robot {robot_id}: {current_node_str} → {next_sub_node}")
 
         # MQTT server/button 토픽으로 전송

@@ -37,3 +37,4 @@ logs/
 .coverage
 htmlcov/
 plan.md
+app/config/settings.py
