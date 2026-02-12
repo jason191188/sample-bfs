@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings
 
 
 class MQTTSettings(BaseSettings):
-    broker: str = "mqtt.hprobot.cloud"
+    broker: str = "54.180.116.81"
     port: int = 1883
     client_id: str = f"smartFarmSub-{uuid.uuid4()}"
     class Config:

@@ -72,9 +72,11 @@ class CommandHandler(MQTTHandler):
         Returns:
             (실제 목적지, 복귀 여부)
         """
-        if final_node == 0 or final_node == 2:
+        print(f"[Path] Robot {current_node}: Received final_node {final_node} for path planning")
+        if final_node == "0" or final_node == "1-0":
             # 복귀 시그널 → 바로 2번 노드로 이동
-            return 2, True
+            print(f"-------------------------------------------------------------------------------------------------------------------")
+            return "1-0", True
         else:
             # 일반 경로 요청
             return final_node, False
