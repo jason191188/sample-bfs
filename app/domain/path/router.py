@@ -43,7 +43,7 @@ async def find_path(request: PathRequest):
 
     # 3. 경로 문자열 생성
     actual_end = path[-1]  # 실제 도착 노드 (잘린 경우 원래 목적지와 다를 수 있음)
-    path_str = format_path(actual_end, request.start, path, directions)
+    path_str = format_path(actual_end, request.start, path, directions, request.end)
 
     # 4. 메시지 생성
     message = "경로 계산 완료"
