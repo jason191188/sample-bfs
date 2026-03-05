@@ -32,8 +32,8 @@ def init_node_data(map_name: str = "default"):
         print(f"[Init] Nodes already exist for map: {map_name}")
         return
 
-    # 1~56번 노드 생성 (순서: [1] → [2] → [3] → ... → [56])
-    for node_id in range(1, 57):
+    # 1~166번 노드 생성 (순서: [1] → [2] → [3] → ... → [166])
+    for node_id in range(1, 167):
         if node_id == 1:
             # 노드 1: 맨 오른쪽 끝
             node_data = {
@@ -45,7 +45,7 @@ def init_node_data(map_name: str = "default"):
             }
         else:
             node_data = {
-                "l": node_id + 1 if node_id < 56 else 0,
+                "l": node_id + 1 if node_id < 166 else 0,
                 "r": node_id - 1,
                 "u": 0,
                 "d": 0,
@@ -53,7 +53,7 @@ def init_node_data(map_name: str = "default"):
             }
         redis_service.hset(nodes_key, str(node_id), json.dumps(node_data))
 
-    print(f"[Init] Created 56 nodes for map: {map_name}")
+    print(f"[Init] Created 166 nodes for map: {map_name}")
 
 
 

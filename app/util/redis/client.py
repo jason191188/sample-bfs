@@ -131,7 +131,13 @@ class RedisService:
                 self.pubsub = self.client.pubsub()
 
             # 채널 구독 및 핸들러 등록
-            self.pubsub.subscribe(**{channel: lambda msg: handler(msg['data'])})
+            def make_callback(ch, h):
+                def callback(msg):
+                    if msg['type'] == 'message':
+                        print(f"[Redis] Received on channel '{ch}': {msg['data']}")
+                        h(msg['data'])
+                return callback
+            self.pubsub.subscribe(**{channel: make_callback(channel, handler)})
 
             # 이미 스레드가 실행 중이 아니면 새로 시작
             if not self.pubsub_thread or not self.pubsub_thread.is_alive():
