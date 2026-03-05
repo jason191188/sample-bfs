@@ -76,15 +76,22 @@ def cut_path(map_name: str, path: list[int], directions: list[str], robot_id: st
             cut_index = i
             break
 
+    # expected_node 제거 (node % 3 == 0 or node % 3 == 2), real node만 유지 (node % 3 == 1)
+    # 시작 노드(i==0)는 항상 유지
+    filtered_path = []
+    filtered_directions = []
+    for i, node in enumerate(path[:cut_index]):
+        if i == 0 or node % 3 == 1:
+            filtered_path.append(node)
+            if i < len(directions):
+                filtered_directions.append(directions[i])
+
     # 최대 20개 노드로 제한
-    if cut_index > 20:
-        cut_index = 20
+    if len(filtered_path) > 20:
+        filtered_path = filtered_path[:20]
+        filtered_directions = filtered_directions[:20]
 
-    # 경로와 방향을 cut_index까지만 자르기
-    cut_path_result = path[:cut_index]
-    cut_directions_result = directions[:cut_index]
-
-    return cut_path_result, cut_directions_result
+    return filtered_path, filtered_directions
 
 
 def format_path(end: int, start: int, path: list[int], directions: list[str], final_node: int) -> str:

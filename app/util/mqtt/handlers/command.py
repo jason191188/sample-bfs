@@ -46,20 +46,17 @@ class CommandHandler(MQTTHandler):
         elif command == "robot_error":
             self._handle_error(map_name, robot_id, payload)
 
-    def _determine_destination(self, current_node: int, final_node: int) -> tuple[int, bool]:
+    def _determine_destination(self, final_node: int) -> tuple[int, bool]:
         """목적지 결정 (복귀 로직)
 
         Args:
-            current_node: 현재 노드
             final_node: 요청된 목적지 (0이면 복귀 시그널)
 
         Returns:
             (실제 목적지, 복귀 여부)
         """
-        print(f"[Path] Robot {current_node}: Received final_node {final_node} for path planning")
         if final_node == 0:
             # 복귀 시그널 → 1번 노드(충전소)로 이동
-            print(f"-------------------------------------------------------------------------------------------------------------------")
             return 1, True
         else:
             # 일반 경로 요청
@@ -70,7 +67,7 @@ class CommandHandler(MQTTHandler):
         data = PathPayload(**json.loads(payload))
 
         # 목적지 결정 (복귀 로직 처리)
-        destination, is_return = self._determine_destination(data.current_node, data.final_node)
+        destination, is_return = self._determine_destination(data.final_node)
 
         # finalNode를 Redis에 저장 (NEXT 명령에서 방향 결정에 사용)
         robot_key = f"robot:state:{map_name}:{robot_id}"

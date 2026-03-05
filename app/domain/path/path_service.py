@@ -61,12 +61,14 @@ class PathCalculationService:
 
         path, directions = cut_path(map_name, path, directions, robot_id)
 
+        print(f"[Path] {path}")
         if len(path) <= 1:
             return None, end_node
 
         actual_end = path[-1]
         path_str = format_path(actual_end, start_node, path, directions, end_node)
 
+        print(f"[Path] Formatted path: {path_str}")
         return path_str, actual_end
 
     def _send_path_response(
