@@ -148,6 +148,40 @@ class CommandHandler(MQTTHandler):
         else:
             print(f"[Remove] Failed to release node {data.current_node} for robot {robot_id}.")
 
+        path_key = f"robot:path:{map_name}:{robot_id}"
+        is_return_str = redis_service.hget(path_key, "is_return")
+
+        # 경로 주행 순서 검증 + 실제 이동 노드 수 확정
+        nodes_traversed = 1  # 기본값
+        path_nodes_str = redis_service.hget(path_key, "path_nodes")
+        path_index_str = redis_service.hget(path_key, "path_index")
+        if path_nodes_str and path_index_str is not None:
+            path_nodes = [int(n) for n in path_nodes_str.split(",")]
+            path_index = int(path_index_str)
+            if path_index < len(path_nodes):
+                expected = path_nodes[path_index]
+                if data.current_node == expected:
+                    nodes_traversed = 1
+                    redis_service.hset(path_key, "path_index", str(path_index + 1))
+                    print(f"[Remove] Robot {robot_id}: path OK [{path_index + 1}/{len(path_nodes)}] node {data.current_node}")
+                elif data.current_node in path_nodes[path_index:]:
+                    new_index = path_nodes.index(data.current_node, path_index) + 1
+                    nodes_traversed = new_index - path_index
+                    redis_service.hset(path_key, "path_index", str(new_index))
+                    print(f"[Remove] Robot {robot_id}: path WARNING - skipped {nodes_traversed - 1} node(s), expected {expected} got {data.current_node} [{new_index}/{len(path_nodes)}]")
+                else:
+                    print(f"[Remove] Robot {robot_id}: path ERROR - unexpected node {data.current_node}, expected {expected} [{path_index}/{len(path_nodes)}]")
+
+        # 실제 이동 노드 수 × 배율(전진×1, 복귀×3)로 node_count 누적
+        unit = 3 if is_return_str == "True" else 1
+        increment = nodes_traversed * unit
+        current_state_key = f"robot:current_state:{map_name}:{robot_id}"
+        current_count_str = redis_service.hget(current_state_key, "node_count")
+        current_count = int(current_count_str) if current_count_str else 0
+        new_count = current_count + increment
+        redis_service.hset(current_state_key, "node_count", str(new_count))
+        print(f"[Remove] Robot {robot_id}: node_count +{increment} ({nodes_traversed} node(s) × {unit}, total: {new_count})")
+
         # Redis로 remove 정보 publish
         payload_data = json.loads(payload)
         if "final_node" in payload_data:

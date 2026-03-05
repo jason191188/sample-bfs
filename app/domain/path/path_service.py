@@ -24,6 +24,24 @@ class PathCalculationService:
         path_str, actual_end = self._calculate_path(map_name, start_node, end_node, robot_id)
         self._send_path_response(map_name, robot_id, start_node, end_node, path_str, actual_end, is_return)
 
+    def _parse_path_nodes(self, path_str: str) -> list[int]:
+        """경로 문자열에서 순서대로 방문할 노드 목록 추출
+
+        Format: {final_node}/{final_dir}~{end}!{start},{dir}/{n1},{dir}/...
+        반환: [start, n1, n2, ..., end] 순서의 노드 ID 리스트
+        """
+        try:
+            left, right = path_str.split("!")
+            end_node = int(left.split("~")[1])
+            nodes = []
+            for segment in right.rstrip("/").split("/"):
+                if segment:
+                    nodes.append(int(segment.split(",")[0]))
+            nodes.append(end_node)
+            return nodes
+        except Exception:
+            return []
+
     def _calculate_path(self, map_name: str, start_node: int, end_node: int, robot_id: str) -> tuple[str | None, int]:
         """BFS 경로 계산
 
@@ -97,6 +115,12 @@ class PathCalculationService:
             redis_service.hset(path_key, "end_node", str(end_node))
             redis_service.hset(path_key, "actual_end", str(actual_end))
             redis_service.hset(path_key, "is_return", str(is_return))
+
+            # 주행 검증용 노드 순서 저장
+            path_nodes = self._parse_path_nodes(path_str)
+            if path_nodes:
+                redis_service.hset(path_key, "path_nodes", ",".join(str(n) for n in path_nodes))
+                redis_service.hset(path_key, "path_index", "0")
 
             print(f"[Path] Robot {robot_id}: Path saved to Redis (key: {path_key})")
 

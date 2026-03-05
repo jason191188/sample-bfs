@@ -117,26 +117,9 @@ class RobotStateService:
         """
         key = self._get_robot_key(map_name, robot_id)
 
-        # 이전 상태 조회 (node_count 계산용)
-        prev_state = self.get_robot_state(map_name, robot_id)
-        prev_node = prev_state.get("current_node") if prev_state else None
-
         self._set_identity_fields(key, map_name, robot_id)
         redis_service.hset(key, "current_node", str(current_node))
         redis_service.hset(key, "updated_at", datetime.now().isoformat())
-
-        # node_count 업데이트 (robot:current_state 키에 저장)
-        current_state_key = f"robot:current_state:{map_name}:{robot_id}"
-        if prev_node is not None and prev_node != current_node:
-            # 이전 노드와 현재 노드가 다르면 1 카운트
-            current_count_str = redis_service.hget(current_state_key, "node_count")
-            current_count = int(current_count_str) if current_count_str else 0
-            new_count = current_count + 1
-            redis_service.hset(current_state_key, "node_count", str(new_count))
-            print(f"[RobotStateService] Robot {robot_id}: Node movement {prev_node} → {current_node} (+1, total: {new_count})")
-        elif prev_node is None:
-            # 처음 시작하는 경우 0으로 초기화
-            redis_service.hset(current_state_key, "node_count", "0")
 
         if final_node is not None:
             redis_service.hset(key, "final_node", str(final_node))
