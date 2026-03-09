@@ -151,7 +151,7 @@ class RobotStateService:
                 if state:
                     target_node = state.get("final_node")
 
-            if target_node == 1:
+            if str(target_node) == "1":
                 redis_service.hset(key, "status", RobotStatus.RETURN.value)
             else:
                 redis_service.hset(key, "status", RobotStatus.WORKING.value)

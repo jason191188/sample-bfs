@@ -92,7 +92,7 @@ class RedisCommandHandler:
         print(f"[Redis/Next] Robot {robot_id}: {current_node} → {next_node}")
 
         button_topic = f"{map_name}/{robot_id}/server/button"
-        button_payload = json.dumps({"final_node": next_node})
+        button_payload = json.dumps({"final_node": f"{next_node}"})
 
         if mqtt_service.publish(button_topic, button_payload):
             print(f"[Redis/Button] Robot {robot_id}: final_node {next_node} sent to {button_topic}")
@@ -115,7 +115,7 @@ class RedisCommandHandler:
         print(f"[Redis/Return] Robot {robot_id}: Return command executed (current: {current_node}, final_node: {final_node}, status: RETURN)")
 
         button_topic = f"{map_name}/{robot_id}/server/button"
-        button_payload = json.dumps({"final_node": final_node})
+        button_payload = json.dumps({"final_node": f"{final_node}"})
 
         if mqtt_service.publish(button_topic, button_payload):
             print(f"[Redis/Button] Robot {robot_id}: Return signal (final_node: {final_node}) sent to {button_topic}")
