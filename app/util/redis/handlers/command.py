@@ -108,7 +108,7 @@ class RedisCommandHandler:
             return
 
         current_node = robot_state["current_node"]
-        final_node = 1  # 충전소 노드
+        final_node = 0  # 로봇에 무조건 복귀하도록 하는 노드
 
         robot_state_service.update_position(map_name, robot_id, current_node, final_node)
 
