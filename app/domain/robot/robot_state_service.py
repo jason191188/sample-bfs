@@ -128,33 +128,19 @@ class RobotStateService:
         if current_node == 1:
             # 1번 노드(충전소)일 때: 충전 상태를 확인하여 status 결정
             state = self.get_robot_state(map_name, robot_id)
-            if state:
-                charging = state.get("charging_state", 0)
-
-                # 충전 중이면 CHARGING
-                if charging == 1:
-                    redis_service.hset(key, "status", RobotStatus.CHARGING.value)
-                else:
-                    # 그 외에는 WAITING
-                    print(f"[RobotStateService] Robot {robot_id} at node 1: Not charging, setting status to WAITING if-else")
-                    redis_service.hset(key, "status", RobotStatus.WAITING.value)
+            charging = state.get("charging_state", 0) if state else 0
+            if charging == 1:
+                redis_service.hset(key, "status", RobotStatus.CHARGING.value)
             else:
-                # 상태 정보가 없으면 기본값 WAITING
-                print(f"[RobotStateService] Robot {robot_id} at node 1: Not charging, setting status to WAITING else-else")
                 redis_service.hset(key, "status", RobotStatus.WAITING.value)
-        else:
-            # 1번 노드가 아닌 경우: final_node가 1이면 RETURN, 아니면 WORKING
-            # final_node가 전달되지 않았으면 Redis에서 조회
-            target_node = final_node
-            if target_node is None:
-                state = self.get_robot_state(map_name, robot_id)
-                if state:
-                    target_node = state.get("final_node")
-
-            if str(target_node) == "1":
+        elif final_node is not None:
+            # final_node가 명시적으로 전달된 경우에만 status 변경
+            # final_node=1이면 RETURN(충전소 복귀), 그 외면 WORKING
+            if final_node == 1:
                 redis_service.hset(key, "status", RobotStatus.RETURN.value)
             else:
                 redis_service.hset(key, "status", RobotStatus.WORKING.value)
+        # final_node=None이면 status 유지 (arrive/remove 시 현재 상태 보존)
 
         # RobotStatus → 가동률 상태 매핑 및 통계 업데이트
         self._update_operation_state(map_name, robot_id)

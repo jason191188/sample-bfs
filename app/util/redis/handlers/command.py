@@ -1,6 +1,7 @@
 import json
 
 from app.domain.robot.robot_state_service import robot_state_service
+from app.domain.robot.robot_status import RobotStatus
 from app.util.redis.init_data import get_node
 from app.util.redis.client import redis_service
 from app.util.mqtt.client import mqtt_service
@@ -88,6 +89,8 @@ class RedisCommandHandler:
         if not next_node or next_node == 0:
             print(f"[Redis/Next] Robot {robot_id}: No left node available from node {current_node}")
             return
+
+        robot_state_service.update_status(map_name, robot_id, RobotStatus.WORKING)
 
         print(f"[Redis/Next] Robot {robot_id}: {current_node} → {next_node}")
 

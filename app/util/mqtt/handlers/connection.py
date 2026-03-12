@@ -5,6 +5,8 @@ from typing import Optional
 
 from app.util.mqtt.handler import MQTTHandler
 from app.util.redis.client import redis_service
+from app.domain.robot.daily_stats_service import daily_stats_service
+from app.domain.robot.robot_states import RobotOperationState
 
 
 class ConnectionHandler(MQTTHandler):
@@ -116,7 +118,19 @@ class ConnectionHandler(MQTTHandler):
         if not parsed:
             return
 
-        key = self._get_connection_key(parsed["device_name"], parsed["map_name"], parsed["device_id"])
+        device_name = parsed["device_name"]
+        map_name = parsed["map_name"]
+        device_id = parsed["device_id"]
+
+        key = self._get_connection_key(device_name, map_name, device_id)
         redis_service.delete(key)
 
-        print(f"[Connection] ❌ Disconnected - {parsed['device_name']}({parsed['map_name']}:{parsed['device_id']}), Reason: {reason}")
+        print(f"[Connection] ❌ Disconnected - {device_name}({map_name}:{device_id}), Reason: {reason}")
+
+        if device_name == "robot":
+            robot_state_key = f"robot:state:{map_name}:{device_id}"
+            redis_service.delete(robot_state_key)
+            daily_stats_service.start_state(map_name, device_id, RobotOperationState.IDLE)
+            print(f"[Connection] Robot {device_id} ({map_name}): state reset to IDLE, robot:state key deleted")
+        elif device_name == "jetson":
+            pass  # TODO: jetson disconnect 처리
